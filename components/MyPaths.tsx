@@ -29,8 +29,7 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onCreatePath, 
     loadPaths();
   }, []);
 
-  const handleArchive = async (pathId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleArchive = async (pathId: number) => {
     if (!confirm('Archive this learning path? You can still access it later.')) return;
     
     try {
@@ -41,8 +40,7 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onCreatePath, 
     }
   };
 
-  const handleDelete = async (pathId: number, topic: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = async (pathId: number, topic: string) => {
     if (!confirm(`Permanently delete "${topic}"? This will remove all progress and cannot be undone. You'll be able to create a new path for this topic.`)) return;
     
     try {
@@ -53,8 +51,7 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onCreatePath, 
     }
   };
 
-  const handleRecreate = (pathId: number, topic: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleRecreate = (pathId: number, topic: string) => {
     if (!confirm(`Recreate learning path for "${topic}"? This will generate a fresh path with new videos and replace your current progress.`)) return;
     
     if (onRecreatePath) {
@@ -126,16 +123,16 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onCreatePath, 
   return (
     <div className="space-y-4">
       {paths.map((path, idx) => (
-        <button
+        <div
           key={path.id}
-          onClick={() => onContinuePath(path.id)}
-          className="group relative tech-border bg-focus-surface hover:bg-focus-dim rounded-lg p-6 cursor-pointer transition-all duration-300 animate-fade-up w-full text-left"
+          className="group relative tech-border bg-focus-surface hover:bg-focus-dim rounded-lg overflow-hidden transition-all duration-300 animate-fade-up"
           style={{ animationDelay: `${idx * 100}ms` }}
         >
-          {/* Hover glow */}
-          <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 rounded-lg transition-colors pointer-events-none" />
-          
-          <div className="relative">
+          {/* Main clickable area - covers content but not action buttons */}
+          <div 
+            onClick={() => onContinuePath(path.id)}
+            className="p-6 pb-0 cursor-pointer"
+          >
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
@@ -192,55 +189,75 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onCreatePath, 
                 />
               </div>
             </div>
+          </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4 text-[10px] font-mono text-gray-500">
-                <span>Started: {formatDate(path.startedAt)}</span>
-                <span>Last active: {formatDate(path.lastAccessedAt)}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {onRecreatePath && (
-                  <button
-                    onClick={(e) => handleRecreate(path.id, path.topic, e)}
-                    className="p-2 text-gray-600 hover:text-emerald-400 transition-colors"
-                    title="Recreate path with fresh content"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                )}
+          {/* Footer with action buttons - separate from main click area */}
+          <div className="px-6 pb-6 flex items-center justify-between">
+            <div className="flex items-center gap-4 text-[10px] font-mono text-gray-500">
+              <span>Started: {formatDate(path.startedAt)}</span>
+              <span>Last active: {formatDate(path.lastAccessedAt)}</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {onRecreatePath && (
                 <button
-                  onClick={(e) => handleArchive(path.id, e)}
-                  className="p-2 text-gray-600 hover:text-yellow-400 transition-colors"
-                  title="Archive path"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRecreate(path.id, path.topic);
+                  }}
+                  className="p-2 text-gray-600 hover:text-emerald-400 transition-colors z-10"
+                  title="Recreate path with fresh content"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
-                <button
-                  onClick={(e) => handleDelete(path.id, path.topic, e)}
-                  className="p-2 text-gray-600 hover:text-red-400 transition-colors"
-                  title="Delete permanently"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-                <div className="flex items-center text-emerald-500 text-xs font-mono font-bold uppercase tracking-widest">
-                  <PlayCircleIcon className="w-4 h-4 mr-1" />
-                  <span>Continue</span>
-                  <ArrowRightIcon className="w-4 h-4 ml-1 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                </div>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleArchive(path.id);
+                }}
+                className="p-2 text-gray-600 hover:text-yellow-400 transition-colors z-10"
+                title="Archive path"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDelete(path.id, path.topic);
+                }}
+                className="p-2 text-gray-600 hover:text-red-400 transition-colors z-10"
+                title="Delete permanently"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => onContinuePath(path.id)}
+                className="flex items-center text-emerald-500 text-xs font-mono font-bold uppercase tracking-widest hover:text-emerald-400 transition-colors z-10"
+              >
+                <PlayCircleIcon className="w-4 h-4 mr-1" />
+                <span>Continue</span>
+                <ArrowRightIcon className="w-4 h-4 ml-1 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </button>
             </div>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );
 };
+
 
