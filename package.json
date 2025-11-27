@@ -1,0 +1,29 @@
+{
+  "name": "lumina---focus-learning",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "cd server && node --watch index.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "build": "vite build",
+    "build:all": "npm run build && echo 'Frontend built to dist/'",
+    "preview": "vite preview",
+    "start": "cd server && NODE_ENV=production node index.js",
+    "start:all": "concurrently \"npm run preview\" \"npm run start\"",
+    "server:install": "cd server && npm install",
+    "install:all": "npm install && npm run server:install"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "concurrently": "^8.2.2"
+  }
+}

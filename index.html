@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LearnLumina - Eliminate Noise, Focus Learning</title>
+    <meta name="description" content="LearnLumina helps you cut through the noise and find the best learning resources. Generate personalized learning paths and track your progress." />
+    <meta name="keywords" content="learning, education, courses, tutorials, AI learning, personalized learning" />
+    <meta property="og:title" content="LearnLumina - Focus Learning" />
+    <meta property="og:description" content="Eliminate noise. Direct path to information. AI-powered learning paths." />
+    <meta property="og:url" content="https://learnlumina.xyz" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://learnlumina.xyz" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              focus: {
+                base: '#020617', // Slate 950
+                surface: '#0f172a', // Slate 900
+                accent: '#10b981', // Emerald 500
+                glow: '#34d399', // Emerald 400
+                dim: '#1e293b', // Slate 800
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #020617;
+        color: #e2e8f0;
+        overflow-x: hidden;
+      }
+      
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #020617; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1e293b; 
+        border: 1px solid #10b981;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #10b981; 
+      }
+
+      /* Moving Perspective Grid */
+      .perspective-grid {
+        position: absolute;
+        width: 200%;
+        height: 200%;
+        background-image: 
+          linear-gradient(rgba(16, 185, 129, 0.1) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(16, 185, 129, 0.1) 1px, transparent 1px);
+        background-size: 50px 50px;
+        transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+        animation: gridMove 20s linear infinite;
+        mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 80%, transparent 100%);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      @keyframes gridMove {
+        0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); }
+        100% { transform: perspective(500px) rotateX(60deg) translateY(50px) translateZ(-200px); }
+      }
+
+      /* Scanline */
+      .scanline {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to bottom, transparent 50%, rgba(16, 185, 129, 0.02) 51%, transparent 51%);
+        background-size: 100% 4px;
+        pointer-events: none;
+        z-index: 50;
+      }
+      
+      /* Tech Borders */
+      .tech-border {
+        position: relative;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+      }
+      .tech-border::before {
+        content: '';
+        position: absolute;
+        top: -1px; left: -1px;
+        width: 10px; height: 10px;
+        border-top: 2px solid #10b981;
+        border-left: 2px solid #10b981;
+        transition: all 0.3s ease;
+      }
+      .tech-border::after {
+        content: '';
+        position: absolute;
+        bottom: -1px; right: -1px;
+        width: 10px; height: 10px;
+        border-bottom: 2px solid #10b981;
+        border-right: 2px solid #10b981;
+        transition: all 0.3s ease;
+      }
+      .tech-border:hover {
+        border-color: rgba(16, 185, 129, 0.6);
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+      }
+      .tech-border:hover::before, .tech-border:hover::after {
+        width: 100%;
+        height: 100%;
+        opacity: 0.5;
+      }
+
+      /* Animations */
+      @keyframes textShine {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 100% 50%; }
+      }
+      .animate-text-shine {
+        background: linear-gradient(to right, #10b981, #34d399, #10b981);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-size: 200% auto;
+        animation: textShine 4s linear infinite;
+      }
+      
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-up {
+        animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="antialiased selection:bg-emerald-500/30 selection:text-emerald-100">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

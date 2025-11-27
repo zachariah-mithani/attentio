@@ -1,0 +1,14 @@
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# Logs
+*.log
+
