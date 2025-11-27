@@ -12,6 +12,7 @@ import { MyPaths } from './components/MyPaths';
 import { ProgressLearningTree } from './components/ProgressLearningTree';
 import { Certificate } from './components/Certificate';
 import { AchievementsModal, AchievementToast } from './components/Achievements';
+import { StatsPage } from './components/StatsPage';
 
 // --- Utilities ---
 
@@ -676,6 +677,19 @@ export default function App() {
                 [ Abort ]
               </button>
             )}
+
+            {/* Stats page link */}
+            {state.mode !== ViewMode.STATS && (
+              <button
+                onClick={() => handleModeSelect(ViewMode.STATS)}
+                className="px-4 py-2 rounded-sm text-xs font-mono text-gray-400 hover:text-emerald-400 transition-colors uppercase tracking-widest flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Stats
+              </button>
+            )}
             
             {/* My Paths button for logged-in users */}
             {isAuthenticated && state.mode !== ViewMode.MY_PATHS && (
@@ -715,7 +729,9 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-16 relative z-10">
-        {state.mode === ViewMode.HOME ? (
+        {state.mode === ViewMode.STATS ? (
+          <StatsPage />
+        ) : state.mode === ViewMode.HOME ? (
           <div className="animate-fade-up">
             <div className="text-center max-w-5xl mx-auto mb-20 mt-12">
               <div className="inline-block mb-6 px-4 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/5 backdrop-blur-sm">

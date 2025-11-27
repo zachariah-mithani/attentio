@@ -4,7 +4,8 @@ export enum ViewMode {
   QUICK = 'QUICK',
   PATH = 'PATH',
   MY_PATHS = 'MY_PATHS',
-  SAVED_PATH = 'SAVED_PATH'
+  SAVED_PATH = 'SAVED_PATH',
+  STATS = 'STATS'
 }
 
 export enum ResourceType {

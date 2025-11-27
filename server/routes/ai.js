@@ -2,10 +2,20 @@ import { Router } from 'express';
 import dotenv from 'dotenv';
 import { pathGenerationLimiter } from '../middleware/rateLimiter.js';
 import { validateTopic } from '../middleware/validation.js';
+import db from '../db/index.js';
 
 dotenv.config();
 
 const router = Router();
+
+// Helper to increment site stats
+function incrementStat(field) {
+  try {
+    db.prepare(`UPDATE site_stats SET ${field} = ${field} + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1`).run();
+  } catch (error) {
+    console.error(`Failed to increment ${field}:`, error);
+  }
+}
 
 const OPENROUTER_API_KEY = process.env.API_KEY || '';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -115,6 +125,9 @@ Return ONLY the JSON array, no other text.`;
     const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const resources = JSON.parse(jsonText);
     
+    // Track Quick Dive search
+    incrementStat('quick_dive_searches');
+    
     res.json({ resources });
   } catch (error) {
     console.error('Resources error:', error);
@@ -161,6 +174,9 @@ router.post('/learning-path', pathGenerationLimiter, validateTopic, async (req, 
     
     const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const path = JSON.parse(jsonText);
+    
+    // Track path generation
+    incrementStat('paths_generated');
     
     res.json({ path });
   } catch (error) {

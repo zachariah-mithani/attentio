@@ -7,19 +7,31 @@ const router = Router();
 // Public stats (anyone can view)
 router.get('/public', (req, res) => {
   try {
-    const stats = db.prepare(`
+    // Get user and path stats
+    const dbStats = db.prepare(`
       SELECT 
         (SELECT COUNT(*) FROM users) as total_users,
         (SELECT COUNT(*) FROM user_paths) as total_paths,
         (SELECT COUNT(*) FROM user_paths WHERE status = 'completed') as completed_paths,
+        (SELECT COUNT(*) FROM user_paths WHERE status = 'active') as active_paths,
         (SELECT COUNT(*) FROM achievements) as total_achievements
     `).get();
 
+    // Get site-wide counters (ensure table exists)
+    let siteStats = { quick_dive_searches: 0, paths_generated: 0 };
+    try {
+      siteStats = db.prepare('SELECT quick_dive_searches, paths_generated FROM site_stats WHERE id = 1').get() || siteStats;
+    } catch (e) {
+      // Table may not exist yet, use defaults
+    }
+
     res.json({
-      users: stats.total_users,
-      paths: stats.total_paths,
-      completedPaths: stats.completed_paths,
-      achievements: stats.total_achievements
+      users: dbStats.total_users,
+      quickDiveSearches: siteStats.quick_dive_searches,
+      pathsGenerated: siteStats.paths_generated,
+      pathsStarted: dbStats.total_paths,
+      pathsCompleted: dbStats.completed_paths,
+      achievements: dbStats.total_achievements
     });
   } catch (error) {
     console.error('Stats error:', error);

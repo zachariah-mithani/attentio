@@ -79,3 +79,14 @@ CREATE TABLE IF NOT EXISTS achievements (
 CREATE INDEX IF NOT EXISTS idx_achievements_user ON achievements(user_id);
 CREATE INDEX IF NOT EXISTS idx_achievements_type ON achievements(type);
 
+-- Site-wide statistics for public stats page
+CREATE TABLE IF NOT EXISTS site_stats (
+  id INTEGER PRIMARY KEY CHECK (id = 1),  -- Singleton row
+  quick_dive_searches INTEGER DEFAULT 0,
+  paths_generated INTEGER DEFAULT 0,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Initialize the singleton row
+INSERT OR IGNORE INTO site_stats (id) VALUES (1);
+
