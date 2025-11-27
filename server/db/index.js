@@ -1,20 +1,18 @@
-import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+dotenv.config();
 
-// Initialize database
-const db = new Database(join(__dirname, 'attentio.db'));
-db.pragma('journal_mode = WAL');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
-// Run schema
-const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
-db.exec(schema);
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables');
+  process.exit(1);
+}
 
-console.log('✓ Database initialized');
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-export default db;
+console.log('✓ Supabase client initialized');
 
+export default supabase;

@@ -2,16 +2,32 @@ import { Router } from 'express';
 import dotenv from 'dotenv';
 import { pathGenerationLimiter } from '../middleware/rateLimiter.js';
 import { validateTopic } from '../middleware/validation.js';
-import db from '../db/index.js';
+import supabase from '../db/index.js';
 
 dotenv.config();
 
 const router = Router();
 
 // Helper to increment site stats
-function incrementStat(field) {
+async function incrementStat(field) {
   try {
-    db.prepare(`UPDATE site_stats SET ${field} = ${field} + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1`).run();
+    // First get current value
+    const { data } = await supabase
+      .from('site_stats')
+      .select(field)
+      .eq('id', 1)
+      .single();
+    
+    const currentValue = data?.[field] || 0;
+    
+    // Update with incremented value
+    await supabase
+      .from('site_stats')
+      .update({ 
+        [field]: currentValue + 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
   } catch (error) {
     console.error(`Failed to increment ${field}:`, error);
   }
@@ -126,7 +142,7 @@ Return ONLY the JSON array, no other text.`;
     const resources = JSON.parse(jsonText);
     
     // Track Quick Dive search
-    incrementStat('quick_dive_searches');
+    await incrementStat('quick_dive_searches');
     
     res.json({ resources });
   } catch (error) {
@@ -176,7 +192,7 @@ router.post('/learning-path', pathGenerationLimiter, validateTopic, async (req, 
     const path = JSON.parse(jsonText);
     
     // Track path generation
-    incrementStat('paths_generated');
+    await incrementStat('paths_generated');
     
     res.json({ path });
   } catch (error) {
@@ -260,4 +276,3 @@ router.post('/youtube-search', async (req, res) => {
 });
 
 export default router;
-

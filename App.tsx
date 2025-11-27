@@ -672,11 +672,11 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
-            {state.mode !== ViewMode.HOME && (
-              <button onClick={() => handleModeSelect(ViewMode.HOME)} className="px-4 py-2 rounded-sm border border-emerald-500/30 text-xs font-mono text-emerald-500 hover:bg-emerald-500/10 transition-all uppercase tracking-widest">
-                [ Abort ]
-              </button>
-            )}
+          {state.mode !== ViewMode.HOME && (
+            <button onClick={() => handleModeSelect(ViewMode.HOME)} className="px-4 py-2 rounded-sm border border-emerald-500/30 text-xs font-mono text-emerald-500 hover:bg-emerald-500/10 transition-all uppercase tracking-widest">
+              [ Abort ]
+            </button>
+          )}
 
             {/* Stats page link */}
             {state.mode !== ViewMode.STATS && (
@@ -759,13 +759,13 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
               {/* Quick Dive Card with search limit indicator */}
               <div className="relative">
-                <ModeCard
-                  title="Quick Dive"
-                  desc="Rapid information acquisition. Curated videos and briefs."
-                  icon={ZapIcon}
-                  active={false}
-                  onClick={() => handleModeSelect(ViewMode.QUICK)}
-                />
+              <ModeCard
+                title="Quick Dive"
+                desc="Rapid information acquisition. Curated videos and briefs."
+                icon={ZapIcon}
+                active={false}
+                onClick={() => handleModeSelect(ViewMode.QUICK)}
+              />
                 {!isAuthenticated && (
                   <div className="absolute top-4 right-4 z-20">
                     <div className="px-2 py-1 bg-focus-dim border border-emerald-500/30 rounded text-[10px] font-mono text-emerald-400">
@@ -777,13 +777,13 @@ export default function App() {
 
               {/* Learning Path Card with lock indicator */}
               <div className="relative">
-                <ModeCard
-                  title="Learning Path"
-                  desc="Long-term structural knowledge acquisition."
-                  icon={MapIcon}
-                  active={false}
-                  onClick={() => handleModeSelect(ViewMode.PATH)}
-                />
+              <ModeCard
+                title="Learning Path"
+                desc="Long-term structural knowledge acquisition."
+                icon={MapIcon}
+                active={false}
+                onClick={() => handleModeSelect(ViewMode.PATH)}
+              />
                 {!isAuthenticated && (
                   <div className="absolute top-4 right-4 z-20">
                     <div className="px-2 py-1 bg-focus-dim border border-amber-500/30 rounded text-[10px] font-mono text-amber-400 flex items-center gap-1">
@@ -791,7 +791,7 @@ export default function App() {
                         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                       Sign up required
-                    </div>
+            </div>
                   </div>
                 )}
               </div>

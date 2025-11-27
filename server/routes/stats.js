@@ -1,37 +1,44 @@
 import { Router } from 'express';
-import db from '../db/index.js';
+import supabase from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
 
 // Public stats (anyone can view)
-router.get('/public', (req, res) => {
+router.get('/public', async (req, res) => {
   try {
-    // Get user and path stats
-    const dbStats = db.prepare(`
-      SELECT 
-        (SELECT COUNT(*) FROM users) as total_users,
-        (SELECT COUNT(*) FROM user_paths) as total_paths,
-        (SELECT COUNT(*) FROM user_paths WHERE status = 'completed') as completed_paths,
-        (SELECT COUNT(*) FROM user_paths WHERE status = 'active') as active_paths,
-        (SELECT COUNT(*) FROM achievements) as total_achievements
-    `).get();
+    // Get user count
+    const { count: userCount } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
 
-    // Get site-wide counters (ensure table exists)
-    let siteStats = { quick_dive_searches: 0, paths_generated: 0 };
-    try {
-      siteStats = db.prepare('SELECT quick_dive_searches, paths_generated FROM site_stats WHERE id = 1').get() || siteStats;
-    } catch (e) {
-      // Table may not exist yet, use defaults
-    }
+    // Get path stats
+    const { data: allPaths } = await supabase
+      .from('user_paths')
+      .select('status');
+
+    const totalPaths = allPaths?.length || 0;
+    const completedPaths = allPaths?.filter(p => p.status === 'completed').length || 0;
+
+    // Get achievement count
+    const { count: achievementCount } = await supabase
+      .from('achievements')
+      .select('*', { count: 'exact', head: true });
+
+    // Get site-wide counters
+    const { data: siteStats } = await supabase
+      .from('site_stats')
+      .select('quick_dive_searches, paths_generated')
+      .eq('id', 1)
+      .single();
 
     res.json({
-      users: dbStats.total_users,
-      quickDiveSearches: siteStats.quick_dive_searches,
-      pathsGenerated: siteStats.paths_generated,
-      pathsStarted: dbStats.total_paths,
-      pathsCompleted: dbStats.completed_paths,
-      achievements: dbStats.total_achievements
+      users: userCount || 0,
+      quickDiveSearches: siteStats?.quick_dive_searches || 0,
+      pathsGenerated: siteStats?.paths_generated || 0,
+      pathsStarted: totalPaths,
+      pathsCompleted: completedPaths,
+      achievements: achievementCount || 0
     });
   } catch (error) {
     console.error('Stats error:', error);
@@ -40,44 +47,68 @@ router.get('/public', (req, res) => {
 });
 
 // Detailed stats (requires auth - for admin use)
-router.get('/detailed', authMiddleware, (req, res) => {
+router.get('/detailed', authMiddleware, async (req, res) => {
   try {
     // User stats
-    const userStats = db.prepare(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN created_at > datetime('now', '-24 hours') THEN 1 END) as last_24h,
-        COUNT(CASE WHEN created_at > datetime('now', '-7 days') THEN 1 END) as last_7d,
-        COUNT(CASE WHEN created_at > datetime('now', '-30 days') THEN 1 END) as last_30d
-      FROM users
-    `).get();
+    const { data: users } = await supabase
+      .from('users')
+      .select('created_at');
+
+    const now = new Date();
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    const userStats = {
+      total: users?.length || 0,
+      last_24h: users?.filter(u => new Date(u.created_at) > oneDayAgo).length || 0,
+      last_7d: users?.filter(u => new Date(u.created_at) > oneWeekAgo).length || 0,
+      last_30d: users?.filter(u => new Date(u.created_at) > oneMonthAgo).length || 0
+    };
 
     // Path stats
-    const pathStats = db.prepare(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-        COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
-        AVG(CASE WHEN total_topics > 0 THEN (completed_topics * 100.0 / total_topics) END) as avg_progress
-      FROM user_paths
-    `).get();
+    const { data: paths } = await supabase
+      .from('user_paths')
+      .select('status, total_topics, completed_topics');
+
+    const pathStats = {
+      total: paths?.length || 0,
+      completed: paths?.filter(p => p.status === 'completed').length || 0,
+      active: paths?.filter(p => p.status === 'active').length || 0,
+      avg_progress: 0
+    };
+
+    if (paths && paths.length > 0) {
+      const progressSum = paths.reduce((sum, p) => {
+        if (p.total_topics > 0) {
+          return sum + (p.completed_topics * 100 / p.total_topics);
+        }
+        return sum;
+      }, 0);
+      pathStats.avg_progress = Math.round(progressSum / paths.length);
+    }
 
     // Recent signups
-    const recentUsers = db.prepare(`
-      SELECT username, created_at 
-      FROM users 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `).all();
+    const { data: recentUsers } = await supabase
+      .from('users')
+      .select('username, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
     // Top topics
-    const topTopics = db.prepare(`
-      SELECT topic, COUNT(*) as count
-      FROM user_paths
-      GROUP BY topic
-      ORDER BY count DESC
-      LIMIT 10
-    `).all();
+    const { data: topicsData } = await supabase
+      .from('user_paths')
+      .select('topic');
+
+    const topicCounts = {};
+    (topicsData || []).forEach(p => {
+      topicCounts[p.topic] = (topicCounts[p.topic] || 0) + 1;
+    });
+
+    const topTopics = Object.entries(topicCounts)
+      .map(([topic, count]) => ({ topic, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
     res.json({
       users: {
@@ -85,13 +116,13 @@ router.get('/detailed', authMiddleware, (req, res) => {
         last24h: userStats.last_24h,
         last7d: userStats.last_7d,
         last30d: userStats.last_30d,
-        recent: recentUsers
+        recent: recentUsers || []
       },
       paths: {
         total: pathStats.total,
         completed: pathStats.completed,
         active: pathStats.active,
-        avgProgress: Math.round(pathStats.avg_progress || 0)
+        avgProgress: pathStats.avg_progress
       },
       topTopics
     });
@@ -102,4 +133,3 @@ router.get('/detailed', authMiddleware, (req, res) => {
 });
 
 export default router;
-

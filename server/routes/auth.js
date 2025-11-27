@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import db from '../db/index.js';
+import supabase from '../db/index.js';
 import { generateToken, authMiddleware } from '../middleware/auth.js';
 import { validateRegistration, validateLogin } from '../middleware/validation.js';
 
@@ -12,9 +12,11 @@ router.post('/register', validateRegistration, async (req, res) => {
     const { email, username, password } = req.body;
 
     // Check if user exists
-    const existingUser = db.prepare(
-      'SELECT id FROM users WHERE email = ? OR username = ?'
-    ).get(email.toLowerCase(), username.toLowerCase());
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .or(`email.eq.${email.toLowerCase()},username.eq.${username.toLowerCase()}`)
+      .single();
 
     if (existingUser) {
       return res.status(409).json({ error: 'Email or username already taken.' });
@@ -25,22 +27,27 @@ router.post('/register', validateRegistration, async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Insert user
-    const result = db.prepare(
-      'INSERT INTO users (email, username, password_hash) VALUES (?, ?, ?)'
-    ).run(email.toLowerCase(), username.toLowerCase(), passwordHash);
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert({
+        email: email.toLowerCase(),
+        username: username.toLowerCase(),
+        password_hash: passwordHash
+      })
+      .select('id, email, username')
+      .single();
 
-    const user = {
-      id: result.lastInsertRowid,
-      email: email.toLowerCase(),
-      username: username.toLowerCase()
-    };
+    if (error) {
+      console.error('Insert error:', error);
+      return res.status(500).json({ error: 'Failed to create account.' });
+    }
 
     // Generate token
-    const token = generateToken(user);
+    const token = generateToken(newUser);
 
     res.status(201).json({
       message: 'Account created successfully.',
-      user: { id: user.id, email: user.email, username: user.username },
+      user: { id: newUser.id, email: newUser.email, username: newUser.username },
       token
     });
 
@@ -56,11 +63,13 @@ router.post('/login', validateLogin, async (req, res) => {
     const { identifier, password } = req.body;
 
     // Find user by email or username
-    const user = db.prepare(
-      'SELECT * FROM users WHERE email = ? OR username = ?'
-    ).get(identifier.toLowerCase(), identifier.toLowerCase());
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .or(`email.eq.${identifier.toLowerCase()},username.eq.${identifier.toLowerCase()}`)
+      .single();
 
-    if (!user) {
+    if (error || !user) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
@@ -86,12 +95,14 @@ router.post('/login', validateLogin, async (req, res) => {
 });
 
 // GET /api/auth/me - Get current user
-router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare(
-    'SELECT id, email, username, created_at FROM users WHERE id = ?'
-  ).get(req.user.id);
+router.get('/me', authMiddleware, async (req, res) => {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, email, username, created_at')
+    .eq('id', req.user.id)
+    .single();
 
-  if (!user) {
+  if (error || !user) {
     return res.status(404).json({ error: 'User not found.' });
   }
 
@@ -106,4 +117,3 @@ router.post('/logout', authMiddleware, (req, res) => {
 });
 
 export default router;
-

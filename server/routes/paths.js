@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../db/index.js';
+import supabase from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { createAchievement, checkFirstPathAchievement, checkMilestoneAchievements } from './achievements.js';
 import { validatePathData, validateProgressUpdate } from '../middleware/validation.js';
@@ -21,33 +21,19 @@ const calculatePathTotals = (pathData) => {
   };
 };
 
-// Helper to calculate completion stats
-const getPathCompletion = (pathId) => {
-  const progress = db.prepare(`
-    SELECT 
-      COUNT(CASE WHEN item_type = 'topic' AND is_completed = 1 THEN 1 END) as completed_topics,
-      COUNT(CASE WHEN item_type = 'project' AND is_completed = 1 THEN 1 END) as completed_projects,
-      COUNT(CASE WHEN item_type = 'stage' AND is_completed = 1 THEN 1 END) as completed_stages
-    FROM path_progress 
-    WHERE path_id = ?
-  `).get(pathId);
-  
-  return progress || { completed_topics: 0, completed_projects: 0, completed_stages: 0 };
-};
-
 // GET /api/paths - Get all user's saved paths
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const paths = db.prepare(`
-      SELECT id, topic, total_stages, total_topics, completed_stages, completed_topics, 
-             status, started_at, last_accessed_at, completed_at
-      FROM user_paths 
-      WHERE user_id = ? 
-      ORDER BY last_accessed_at DESC
-    `).all(req.user.id);
+    const { data: paths, error } = await supabase
+      .from('user_paths')
+      .select('id, topic, total_stages, total_topics, completed_stages, completed_topics, status, started_at, last_accessed_at, completed_at')
+      .eq('user_id', req.user.id)
+      .order('last_accessed_at', { ascending: false });
+
+    if (error) throw error;
 
     // Calculate progress percentage for each
-    const pathsWithProgress = paths.map(p => ({
+    const pathsWithProgress = (paths || []).map(p => ({
       ...p,
       progress_percent: p.total_topics > 0 
         ? Math.round((p.completed_topics / p.total_topics) * 100) 
@@ -62,13 +48,16 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/paths/:id - Get specific path with full data and progress
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const path = db.prepare(`
-      SELECT * FROM user_paths WHERE id = ? AND user_id = ?
-    `).get(req.params.id, req.user.id);
+    const { data: path, error } = await supabase
+      .from('user_paths')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
 
-    if (!path) {
+    if (error || !path) {
       return res.status(404).json({ error: 'Path not found.' });
     }
 
@@ -76,23 +65,23 @@ router.get('/:id', (req, res) => {
     const pathData = JSON.parse(path.path_data);
 
     // Get all progress items for this path
-    const progressItems = db.prepare(`
-      SELECT stage_index, item_type, item_index, is_completed, completed_at, notes
-      FROM path_progress 
-      WHERE path_id = ?
-    `).all(path.id);
+    const { data: progressItems } = await supabase
+      .from('path_progress')
+      .select('stage_index, item_type, item_index, is_completed, completed_at, notes')
+      .eq('path_id', path.id);
 
     // Create a lookup map for quick access
     const progressMap = {};
-    progressItems.forEach(item => {
+    (progressItems || []).forEach(item => {
       const key = `${item.stage_index}-${item.item_type}-${item.item_index}`;
       progressMap[key] = item;
     });
 
     // Update last accessed
-    db.prepare(`
-      UPDATE user_paths SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(path.id);
+    await supabase
+      .from('user_paths')
+      .update({ last_accessed_at: new Date().toISOString() })
+      .eq('id', path.id);
 
     res.json({
       id: path.id,
@@ -115,16 +104,20 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/paths - Save a new learning path
-router.post('/', validatePathData, (req, res) => {
+router.post('/', validatePathData, async (req, res) => {
   try {
     const { topic, pathData } = req.body;
 
     const { totalStages, totalTopics } = calculatePathTotals(pathData);
 
     // Check if user already has this topic saved
-    const existing = db.prepare(`
-      SELECT id FROM user_paths WHERE user_id = ? AND topic = ? AND status = 'active'
-    `).get(req.user.id, topic);
+    const { data: existing } = await supabase
+      .from('user_paths')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('topic', topic)
+      .eq('status', 'active')
+      .single();
 
     if (existing) {
       return res.status(409).json({ 
@@ -133,14 +126,23 @@ router.post('/', validatePathData, (req, res) => {
       });
     }
 
-    const result = db.prepare(`
-      INSERT INTO user_paths (user_id, topic, path_data, total_stages, total_topics)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(req.user.id, topic, JSON.stringify(pathData), totalStages, totalTopics);
+    const { data: newPath, error } = await supabase
+      .from('user_paths')
+      .insert({
+        user_id: req.user.id,
+        topic,
+        path_data: JSON.stringify(pathData),
+        total_stages: totalStages,
+        total_topics: totalTopics
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
 
     res.status(201).json({
       message: 'Path saved successfully.',
-      pathId: result.lastInsertRowid,
+      pathId: newPath.id,
       topic,
       totalStages,
       totalTopics
@@ -152,98 +154,110 @@ router.post('/', validatePathData, (req, res) => {
 });
 
 // PUT /api/paths/:id/progress - Update progress on a specific item
-router.put('/:id/progress', validateProgressUpdate, (req, res) => {
+router.put('/:id/progress', validateProgressUpdate, async (req, res) => {
   try {
     const { stageIndex, itemType, itemIndex, isCompleted, notes } = req.body;
 
     // Validate path belongs to user
-    const path = db.prepare(`
-      SELECT id, total_topics FROM user_paths WHERE id = ? AND user_id = ?
-    `).get(req.params.id, req.user.id);
+    const { data: path, error: pathError } = await supabase
+      .from('user_paths')
+      .select('id, total_topics, status')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
 
-    if (!path) {
+    if (pathError || !path) {
       return res.status(404).json({ error: 'Path not found.' });
     }
 
-    // Upsert progress
-    db.prepare(`
-      INSERT INTO path_progress (path_id, user_id, stage_index, item_type, item_index, is_completed, completed_at, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(path_id, stage_index, item_type, item_index) 
-      DO UPDATE SET 
-        is_completed = excluded.is_completed,
-        completed_at = CASE WHEN excluded.is_completed = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
-        notes = COALESCE(excluded.notes, notes)
-    `).run(
-      path.id, 
-      req.user.id, 
-      stageIndex, 
-      itemType, 
-      itemIndex, 
-      isCompleted ? 1 : 0,
-      isCompleted ? new Date().toISOString() : null,
-      notes || null
-    );
+    // Upsert progress using Supabase's upsert
+    const { error: upsertError } = await supabase
+      .from('path_progress')
+      .upsert({
+        path_id: path.id,
+        user_id: req.user.id,
+        stage_index: stageIndex,
+        item_type: itemType,
+        item_index: itemIndex,
+        is_completed: isCompleted ? 1 : 0,
+        completed_at: isCompleted ? new Date().toISOString() : null,
+        notes: notes || null
+      }, {
+        onConflict: 'path_id,stage_index,item_type,item_index'
+      });
+
+    if (upsertError) throw upsertError;
 
     // Recalculate completion stats
-    const stats = db.prepare(`
-      SELECT 
-        COUNT(CASE WHEN item_type = 'topic' AND is_completed = 1 THEN 1 END) as completed_topics,
-        COUNT(CASE WHEN item_type = 'stage' AND is_completed = 1 THEN 1 END) as completed_stages
-      FROM path_progress 
-      WHERE path_id = ?
-    `).get(path.id);
+    const { data: progressData } = await supabase
+      .from('path_progress')
+      .select('item_type, is_completed')
+      .eq('path_id', path.id);
+
+    const stats = {
+      completed_topics: 0,
+      completed_stages: 0
+    };
+
+    (progressData || []).forEach(item => {
+      if (item.is_completed === 1) {
+        if (item.item_type === 'topic') stats.completed_topics++;
+        if (item.item_type === 'stage') stats.completed_stages++;
+      }
+    });
+
+    // Check if fully completed
+    const isFullyCompleted = stats.completed_topics >= path.total_topics;
+    const isNewCompletion = isFullyCompleted && path.status !== 'completed';
 
     // Update path stats
-    const isFullyCompleted = stats.completed_topics >= path.total_topics;
-    
-    // Check if this is a NEW completion (wasn't completed before)
-    const wasCompleted = db.prepare(`
-      SELECT status FROM user_paths WHERE id = ?
-    `).get(path.id);
-    const isNewCompletion = isFullyCompleted && wasCompleted.status !== 'completed';
-    
-    db.prepare(`
-      UPDATE user_paths 
-      SET completed_topics = ?, 
-          completed_stages = ?,
-          status = CASE WHEN ? THEN 'completed' ELSE status END,
-          completed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE completed_at END,
-          last_accessed_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(
-      stats.completed_topics, 
-      stats.completed_stages,
-      isFullyCompleted ? 1 : 0,
-      isFullyCompleted ? 1 : 0,
-      path.id
-    );
+    const updateData = {
+      completed_topics: stats.completed_topics,
+      completed_stages: stats.completed_stages,
+      last_accessed_at: new Date().toISOString()
+    };
+
+    if (isFullyCompleted) {
+      updateData.status = 'completed';
+      updateData.completed_at = new Date().toISOString();
+    }
+
+    await supabase
+      .from('user_paths')
+      .update(updateData)
+      .eq('id', path.id);
 
     // Award achievements if newly completed
     let newAchievements = [];
     if (isNewCompletion) {
       // Get path topic for achievement
-      const pathInfo = db.prepare(`SELECT topic, total_stages, total_topics FROM user_paths WHERE id = ?`).get(path.id);
-      
-      // Award path completion achievement
-      const pathAchievement = createAchievement(
-        req.user.id,
-        path.id,
-        'path_completion',
-        `${pathInfo.topic} Master`,
-        `Completed the ${pathInfo.topic} learning path with ${pathInfo.total_topics} topics`,
-        pathInfo.topic,
-        'trophy'
-      );
-      if (pathAchievement) newAchievements.push(pathAchievement);
+      const { data: pathInfo } = await supabase
+        .from('user_paths')
+        .select('topic, total_stages, total_topics')
+        .eq('id', path.id)
+        .single();
 
-      // Check for first path achievement
-      const firstPath = checkFirstPathAchievement(req.user.id);
-      if (firstPath) newAchievements.push(firstPath);
+      if (pathInfo) {
+        // Award path completion achievement
+        const pathAchievement = await createAchievement(
+          req.user.id,
+          path.id,
+          'path_completion',
+          `${pathInfo.topic} Master`,
+          `Completed the ${pathInfo.topic} learning path with ${pathInfo.total_topics} topics`,
+          pathInfo.topic,
+          'trophy'
+        );
+        if (pathAchievement) newAchievements.push(pathAchievement);
 
-      // Check for milestone achievements
-      const milestones = checkMilestoneAchievements(req.user.id);
-      newAchievements = newAchievements.concat(milestones);
+        // Check for first path achievement
+        const firstPath = await checkFirstPathAchievement(req.user.id);
+        if (firstPath) newAchievements.push(firstPath);
+
+        // Check for milestone achievements
+        const milestones = await checkMilestoneAchievements(req.user.id);
+        newAchievements = newAchievements.concat(milestones);
+      }
     }
 
     res.json({
@@ -260,13 +274,16 @@ router.put('/:id/progress', validateProgressUpdate, (req, res) => {
 });
 
 // DELETE /api/paths/:id - Archive/delete a path
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const result = db.prepare(`
-      UPDATE user_paths SET status = 'archived' WHERE id = ? AND user_id = ?
-    `).run(req.params.id, req.user.id);
+    const { data, error } = await supabase
+      .from('user_paths')
+      .update({ status: 'archived' })
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select('id');
 
-    if (result.changes === 0) {
+    if (error || !data || data.length === 0) {
       return res.status(404).json({ error: 'Path not found.' });
     }
 
@@ -278,26 +295,36 @@ router.delete('/:id', (req, res) => {
 });
 
 // POST /api/paths/:id/restart - Restart a path (clear progress)
-router.post('/:id/restart', (req, res) => {
+router.post('/:id/restart', async (req, res) => {
   try {
-    const path = db.prepare(`
-      SELECT id FROM user_paths WHERE id = ? AND user_id = ?
-    `).get(req.params.id, req.user.id);
+    const { data: path } = await supabase
+      .from('user_paths')
+      .select('id')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
 
     if (!path) {
       return res.status(404).json({ error: 'Path not found.' });
     }
 
     // Clear all progress
-    db.prepare(`DELETE FROM path_progress WHERE path_id = ?`).run(path.id);
+    await supabase
+      .from('path_progress')
+      .delete()
+      .eq('path_id', path.id);
 
     // Reset path stats
-    db.prepare(`
-      UPDATE user_paths 
-      SET completed_topics = 0, completed_stages = 0, status = 'active',
-          completed_at = NULL, last_accessed_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(path.id);
+    await supabase
+      .from('user_paths')
+      .update({
+        completed_topics: 0,
+        completed_stages: 0,
+        status: 'active',
+        completed_at: null,
+        last_accessed_at: new Date().toISOString()
+      })
+      .eq('id', path.id);
 
     res.json({ message: 'Path progress reset.' });
   } catch (error) {
@@ -307,4 +334,3 @@ router.post('/:id/restart', (req, res) => {
 });
 
 export default router;
-

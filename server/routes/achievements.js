@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../db/index.js';
+import supabase from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
@@ -8,16 +8,17 @@ const router = Router();
 router.use(authMiddleware);
 
 // GET /api/achievements - Get all user's achievements
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const achievements = db.prepare(`
-      SELECT id, type, title, description, topic, icon, earned_at, path_id
-      FROM achievements 
-      WHERE user_id = ? 
-      ORDER BY earned_at DESC
-    `).all(req.user.id);
+    const { data: achievements, error } = await supabase
+      .from('achievements')
+      .select('id, type, title, description, topic, icon, earned_at, path_id')
+      .eq('user_id', req.user.id)
+      .order('earned_at', { ascending: false });
 
-    res.json({ achievements });
+    if (error) throw error;
+
+    res.json({ achievements: achievements || [] });
   } catch (error) {
     console.error('Get achievements error:', error);
     res.status(500).json({ error: 'Failed to fetch achievements.' });
@@ -25,16 +26,20 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/achievements/stats - Get achievement stats
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
-    const stats = db.prepare(`
-      SELECT 
-        COUNT(*) as total_achievements,
-        COUNT(CASE WHEN type = 'path_completion' THEN 1 END) as paths_completed,
-        COUNT(CASE WHEN type = 'first_path' THEN 1 END) as milestones
-      FROM achievements 
-      WHERE user_id = ?
-    `).get(req.user.id);
+    const { data: achievements, error } = await supabase
+      .from('achievements')
+      .select('type')
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+
+    const stats = {
+      total_achievements: achievements?.length || 0,
+      paths_completed: achievements?.filter(a => a.type === 'path_completion').length || 0,
+      milestones: achievements?.filter(a => a.type === 'first_path').length || 0
+    };
 
     res.json({ stats });
   } catch (error) {
@@ -44,41 +49,54 @@ router.get('/stats', (req, res) => {
 });
 
 // Helper function to create an achievement (used internally)
-export const createAchievement = (userId, pathId, type, title, description, topic, icon = 'trophy') => {
+export const createAchievement = async (userId, pathId, type, title, description, topic, icon = 'trophy') => {
   // Check if achievement already exists for this path
   if (pathId) {
-    const existing = db.prepare(`
-      SELECT id FROM achievements WHERE user_id = ? AND path_id = ? AND type = ?
-    `).get(userId, pathId, type);
+    const { data: existing } = await supabase
+      .from('achievements')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('path_id', pathId)
+      .eq('type', type)
+      .single();
     
     if (existing) {
       return null; // Already has this achievement
     }
   }
 
-  const result = db.prepare(`
-    INSERT INTO achievements (user_id, path_id, type, title, description, topic, icon)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, pathId, type, title, description, topic, icon);
+  const { data: newAchievement, error } = await supabase
+    .from('achievements')
+    .insert({
+      user_id: userId,
+      path_id: pathId,
+      type,
+      title,
+      description,
+      topic,
+      icon
+    })
+    .select('id, type, title, description, topic, icon')
+    .single();
 
-  return {
-    id: result.lastInsertRowid,
-    type,
-    title,
-    description,
-    topic,
-    icon
-  };
+  if (error) {
+    console.error('Create achievement error:', error);
+    return null;
+  }
+
+  return newAchievement;
 };
 
 // Check and award first path completion achievement
-export const checkFirstPathAchievement = (userId) => {
-  const pathCount = db.prepare(`
-    SELECT COUNT(*) as count FROM user_paths WHERE user_id = ? AND status = 'completed'
-  `).get(userId);
+export const checkFirstPathAchievement = async (userId) => {
+  const { data: paths } = await supabase
+    .from('user_paths')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'completed');
 
-  if (pathCount.count === 1) {
-    return createAchievement(
+  if (paths?.length === 1) {
+    return await createAchievement(
       userId,
       null,
       'first_path',
@@ -92,10 +110,14 @@ export const checkFirstPathAchievement = (userId) => {
 };
 
 // Check milestone achievements (5, 10, 25, 50 paths)
-export const checkMilestoneAchievements = (userId) => {
-  const pathCount = db.prepare(`
-    SELECT COUNT(*) as count FROM user_paths WHERE user_id = ? AND status = 'completed'
-  `).get(userId);
+export const checkMilestoneAchievements = async (userId) => {
+  const { data: paths } = await supabase
+    .from('user_paths')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'completed');
+
+  const pathCount = paths?.length || 0;
 
   const milestones = [
     { count: 5, title: 'Dedicated Learner', desc: 'Completed 5 learning paths', icon: 'star' },
@@ -107,13 +129,16 @@ export const checkMilestoneAchievements = (userId) => {
   const newAchievements = [];
   
   for (const milestone of milestones) {
-    if (pathCount.count >= milestone.count) {
-      const existing = db.prepare(`
-        SELECT id FROM achievements WHERE user_id = ? AND type = 'milestone_${milestone.count}'
-      `).get(userId);
+    if (pathCount >= milestone.count) {
+      const { data: existing } = await supabase
+        .from('achievements')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('type', `milestone_${milestone.count}`)
+        .single();
       
       if (!existing) {
-        const achievement = createAchievement(
+        const achievement = await createAchievement(
           userId,
           null,
           `milestone_${milestone.count}`,
@@ -131,4 +156,3 @@ export const checkMilestoneAchievements = (userId) => {
 };
 
 export default router;
-
