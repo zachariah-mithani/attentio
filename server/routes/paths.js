@@ -116,7 +116,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/paths - Save a new learning path
 router.post('/', validatePathData, async (req, res) => {
   try {
-    const { topic, pathData } = req.body;
+    const { topic, pathData, replace } = req.body;
 
     const { totalStages, totalTopics } = calculatePathTotals(pathData);
 
@@ -130,10 +130,24 @@ router.post('/', validatePathData, async (req, res) => {
       .single();
 
     if (existing) {
-      return res.status(409).json({ 
-        error: 'You already have an active path for this topic.',
-        existingPathId: existing.id
-      });
+      if (replace) {
+        // Delete existing path progress
+        await supabase
+          .from('path_progress')
+          .delete()
+          .eq('path_id', existing.id);
+        
+        // Delete existing path
+        await supabase
+          .from('user_paths')
+          .delete()
+          .eq('id', existing.id);
+      } else {
+        return res.status(409).json({ 
+          error: 'You already have an active path for this topic.',
+          existingPathId: existing.id
+        });
+      }
     }
 
     const { data: newPath, error } = await supabase
@@ -283,24 +297,49 @@ router.put('/:id/progress', validateProgressUpdate, async (req, res) => {
   }
 });
 
-// DELETE /api/paths/:id - Archive/delete a path
+// DELETE /api/paths/:id - Delete a path (with option to permanently delete)
 router.delete('/:id', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('user_paths')
-      .update({ status: 'archived' })
-      .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
-      .select('id');
+    const permanent = req.query.permanent === 'true';
 
-    if (error || !data || data.length === 0) {
-      return res.status(404).json({ error: 'Path not found.' });
+    if (permanent) {
+      // First delete all progress for this path
+      await supabase
+        .from('path_progress')
+        .delete()
+        .eq('path_id', req.params.id);
+
+      // Then delete the path itself
+      const { data, error } = await supabase
+        .from('user_paths')
+        .delete()
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
+        .select('id');
+
+      if (error || !data || data.length === 0) {
+        return res.status(404).json({ error: 'Path not found.' });
+      }
+
+      res.json({ message: 'Path permanently deleted.' });
+    } else {
+      // Archive the path
+      const { data, error } = await supabase
+        .from('user_paths')
+        .update({ status: 'archived' })
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
+        .select('id');
+
+      if (error || !data || data.length === 0) {
+        return res.status(404).json({ error: 'Path not found.' });
+      }
+
+      res.json({ message: 'Path archived successfully.' });
     }
-
-    res.json({ message: 'Path archived successfully.' });
   } catch (error) {
     console.error('Delete path error:', error);
-    res.status(500).json({ error: 'Failed to archive path.' });
+    res.status(500).json({ error: 'Failed to delete path.' });
   }
 });
 

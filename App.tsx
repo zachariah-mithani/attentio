@@ -403,19 +403,31 @@ export default function App() {
   };
 
   // Handle saving a learning path
-  const handleSavePath = async () => {
+  const handleSavePath = async (replace: boolean = false) => {
     if (!isAuthenticated || !state.learningPath.length) return;
     
     setSavingPath(true);
     setSaveError(null);
     
     try {
-      const result = await saveLearningPath(state.topic, state.learningPath);
+      const result = await saveLearningPath(state.topic, state.learningPath, replace);
       setPathSaved(true);
-      // Optionally navigate to the saved path
+      // Navigate to the saved path
       handleContinuePath(result.pathId);
     } catch (err: any) {
-      setSaveError(err.message);
+      // If path already exists, ask if they want to replace
+      if (err.existingPathId) {
+        const shouldReplace = confirm(
+          `You already have a learning path for "${state.topic}". Would you like to replace it with this new one? Your existing progress will be lost.`
+        );
+        if (shouldReplace) {
+          handleSavePath(true); // Retry with replace = true
+        } else {
+          setSaveError(null);
+        }
+      } else {
+        setSaveError(err.message);
+      }
     } finally {
       setSavingPath(false);
     }
@@ -624,7 +636,7 @@ export default function App() {
           {isAuthenticated && !pathSaved && (
             <div className="mb-8 flex items-center justify-center gap-4 animate-fade-up">
               <button
-                onClick={handleSavePath}
+                onClick={() => handleSavePath(false)}
                 disabled={savingPath}
                 className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-black font-bold rounded-lg transition-colors flex items-center gap-2 uppercase tracking-wider text-sm"
               >

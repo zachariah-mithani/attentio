@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SavedPath, getUserPaths, archivePath } from '../services/pathService';
+import { SavedPath, getUserPaths, archivePath, deletePath } from '../services/pathService';
 import { MapIcon, ArrowRightIcon, PlayCircleIcon } from './Icons';
 
 interface MyPathsProps {
@@ -34,6 +34,18 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose }) => 
     
     try {
       await archivePath(pathId);
+      setPaths(paths.filter(p => p.id !== pathId));
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async (pathId: number, topic: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Permanently delete "${topic}"? This will remove all progress and cannot be undone. You'll be able to create a new path for this topic.`)) return;
+    
+    try {
+      await deletePath(pathId);
       setPaths(paths.filter(p => p.id !== pathId));
     } catch (err: any) {
       setError(err.message);
@@ -177,8 +189,17 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose }) => 
               <div className="flex items-center gap-2">
                 <button
                   onClick={(e) => handleArchive(path.id, e)}
-                  className="p-2 text-gray-600 hover:text-red-400 transition-colors"
+                  className="p-2 text-gray-600 hover:text-yellow-400 transition-colors"
                   title="Archive path"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={(e) => handleDelete(path.id, path.topic, e)}
+                  className="p-2 text-gray-600 hover:text-red-400 transition-colors"
+                  title="Delete permanently"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

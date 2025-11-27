@@ -76,16 +76,26 @@ export const getPathWithProgress = async (pathId: number): Promise<PathWithProgr
 };
 
 // Save a new learning path
-export const saveLearningPath = async (topic: string, pathData: PathStage[]): Promise<{ pathId: number }> => {
+export const saveLearningPath = async (
+  topic: string, 
+  pathData: PathStage[], 
+  replace: boolean = false
+): Promise<{ pathId: number; existingPathId?: number }> => {
   const response = await fetch(`${API_URL}/paths`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ topic, pathData })
+    body: JSON.stringify({ topic, pathData, replace })
   });
 
   const data = await response.json();
 
   if (!response.ok) {
+    // Return the existingPathId if there's a conflict
+    if (response.status === 409 && data.existingPathId) {
+      const error: any = new Error(data.error || 'Path already exists');
+      error.existingPathId = data.existingPathId;
+      throw error;
+    }
     throw new Error(data.error || 'Failed to save path');
   }
 
@@ -145,6 +155,19 @@ export const archivePath = async (pathId: number): Promise<void> => {
   if (!response.ok) {
     const data = await response.json();
     throw new Error(data.error || 'Failed to archive path');
+  }
+};
+
+// Permanently delete a path
+export const deletePath = async (pathId: number): Promise<void> => {
+  const response = await fetch(`${API_URL}/paths/${pathId}?permanent=true`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || 'Failed to delete path');
   }
 };
 
