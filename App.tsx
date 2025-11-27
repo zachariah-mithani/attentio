@@ -332,6 +332,17 @@ export default function App() {
   // Suggestions state
   const [suggestions, setSuggestions] = useState<string[]>([]);
   
+  // Quick Dive search limit tracking
+  const [quickDiveSearches, setQuickDiveSearches] = useState<number>(() => {
+    const stored = localStorage.getItem('attentio_quick_searches');
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  const QUICK_DIVE_LIMIT = 3;
+  
+  // Signup gate state
+  const [showSignupGate, setShowSignupGate] = useState(false);
+  const [gateReason, setGateReason] = useState<'path' | 'quick_limit'>('path');
+  
   // Auth modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
@@ -351,6 +362,25 @@ export default function App() {
   const openAuthModal = (mode: 'login' | 'register') => {
     setAuthModalMode(mode);
     setAuthModalOpen(true);
+  };
+
+  // Open signup gate with reason
+  const openSignupGate = (reason: 'path' | 'quick_limit') => {
+    setGateReason(reason);
+    setShowSignupGate(true);
+  };
+
+  // Track Quick Dive searches
+  const incrementQuickSearches = () => {
+    const newCount = quickDiveSearches + 1;
+    setQuickDiveSearches(newCount);
+    localStorage.setItem('attentio_quick_searches', newCount.toString());
+    return newCount;
+  };
+
+  // Check if user can use Quick Dive
+  const canUseQuickDive = () => {
+    return isAuthenticated || quickDiveSearches < QUICK_DIVE_LIMIT;
   };
 
   // Handle saving a learning path
@@ -423,6 +453,12 @@ export default function App() {
 
 
   const handleModeSelect = (mode: ViewMode) => {
+    // Gate Learning Path mode - require authentication
+    if (mode === ViewMode.PATH && !isAuthenticated) {
+      openSignupGate('path');
+      return;
+    }
+    
     setState(prev => ({ ...prev, mode, error: null, topic: '', quickResources: [], learningPath: [] }));
     setFilterType('All');
     setSortType('Relevance');
@@ -435,11 +471,23 @@ export default function App() {
   const executeSearch = useCallback(async (searchTopic: string) => {
     if (!searchTopic.trim()) return;
 
+    // Check Quick Dive limit for non-authenticated users
+    if (state.mode === ViewMode.QUICK && !isAuthenticated) {
+      if (quickDiveSearches >= QUICK_DIVE_LIMIT) {
+        openSignupGate('quick_limit');
+        return;
+      }
+    }
+
     setState(prev => ({ ...prev, topic: searchTopic, isLoading: true, error: null, quickResources: [], learningPath: [] }));
     setSuggestions([]); // Clear suggestions on search
 
     try {
       if (state.mode === ViewMode.QUICK) {
+        // Increment search count for non-authenticated users
+        if (!isAuthenticated) {
+          incrementQuickSearches();
+        }
         const data = await fetchQuickResources(searchTopic);
         setState(prev => ({ ...prev, quickResources: data, isLoading: false }));
       } else if (state.mode === ViewMode.PATH) {
@@ -449,7 +497,7 @@ export default function App() {
     } catch (err) {
       setState(prev => ({ ...prev, isLoading: false, error: "System unable to retrieve data. Retry sequence initiated." }));
     }
-  }, [state.mode]);
+  }, [state.mode, isAuthenticated, quickDiveSearches]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -693,20 +741,44 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-              <ModeCard
-                title="Quick Dive"
-                desc="Rapid information acquisition. Curated videos and briefs."
-                icon={ZapIcon}
-                active={false}
-                onClick={() => handleModeSelect(ViewMode.QUICK)}
-              />
-              <ModeCard
-                title="Learning Path"
-                desc="Long-term structural knowledge acquisition."
-                icon={MapIcon}
-                active={false}
-                onClick={() => handleModeSelect(ViewMode.PATH)}
-              />
+              {/* Quick Dive Card with search limit indicator */}
+              <div className="relative">
+                <ModeCard
+                  title="Quick Dive"
+                  desc="Rapid information acquisition. Curated videos and briefs."
+                  icon={ZapIcon}
+                  active={false}
+                  onClick={() => handleModeSelect(ViewMode.QUICK)}
+                />
+                {!isAuthenticated && (
+                  <div className="absolute top-4 right-4 z-20">
+                    <div className="px-2 py-1 bg-focus-dim border border-emerald-500/30 rounded text-[10px] font-mono text-emerald-400">
+                      {QUICK_DIVE_LIMIT - quickDiveSearches} / {QUICK_DIVE_LIMIT} free
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Learning Path Card with lock indicator */}
+              <div className="relative">
+                <ModeCard
+                  title="Learning Path"
+                  desc="Long-term structural knowledge acquisition."
+                  icon={MapIcon}
+                  active={false}
+                  onClick={() => handleModeSelect(ViewMode.PATH)}
+                />
+                {!isAuthenticated && (
+                  <div className="absolute top-4 right-4 z-20">
+                    <div className="px-2 py-1 bg-focus-dim border border-amber-500/30 rounded text-[10px] font-mono text-amber-400 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                      </svg>
+                      Sign up required
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Continue Learning Section for logged-in users */}
@@ -842,6 +914,36 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              
+              {/* Search limit indicator for Quick Dive */}
+              {state.mode === ViewMode.QUICK && !isAuthenticated && (
+                <div className="mt-3 flex justify-center">
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <span className="text-gray-500">Free searches remaining:</span>
+                    <div className="flex gap-1">
+                      {[...Array(QUICK_DIVE_LIMIT)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full transition-colors ${
+                            i < (QUICK_DIVE_LIMIT - quickDiveSearches)
+                              ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
+                              : 'bg-gray-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {quickDiveSearches >= QUICK_DIVE_LIMIT && (
+                      <button
+                        type="button"
+                        onClick={() => openAuthModal('register')}
+                        className="text-emerald-400 hover:text-emerald-300 underline"
+                      >
+                        Get unlimited
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </form>
 
             {/* Search Suggestions */}
@@ -888,6 +990,119 @@ export default function App() {
           achievement={achievementToast} 
           onClose={() => setAchievementToast(null)} 
         />
+      )}
+
+      {/* Signup Gate Modal */}
+      {showSignupGate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowSignupGate(false)}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative z-10 w-full max-w-md mx-4 animate-fade-up">
+            <div className="tech-border bg-focus-surface rounded-xl p-8">
+              {/* Close button */}
+              <button
+                onClick={() => setShowSignupGate(false)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              {/* Icon */}
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                  {gateReason === 'path' ? (
+                    <MapIcon className="w-8 h-8 text-emerald-400" />
+                  ) : (
+                    <ZapIcon className="w-8 h-8 text-emerald-400" />
+                  )}
+                </div>
+              </div>
+
+              {/* Title */}
+              <h3 className="text-2xl font-bold text-white text-center mb-2 uppercase tracking-tight">
+                {gateReason === 'path' ? 'Unlock Learning Paths' : 'Free Searches Used'}
+              </h3>
+
+              {/* Description */}
+              <p className="text-gray-400 text-center mb-6 leading-relaxed">
+                {gateReason === 'path' ? (
+                  <>
+                    Learning Paths are an exclusive feature for registered users. 
+                    Create a free account to build personalized curriculum sequences and track your progress.
+                  </>
+                ) : (
+                  <>
+                    You've used all {QUICK_DIVE_LIMIT} free Quick Dive searches. 
+                    Create a free account for unlimited searches and access to Learning Paths.
+                  </>
+                )}
+              </p>
+
+              {/* Benefits */}
+              <div className="bg-focus-dim rounded-lg p-4 mb-6">
+                <div className="text-[10px] text-emerald-500 font-mono uppercase tracking-widest mb-3">
+                  Free Account Benefits
+                </div>
+                <ul className="space-y-2">
+                  <li className="flex items-center text-sm text-gray-300">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-3" />
+                    Unlimited Quick Dive searches
+                  </li>
+                  <li className="flex items-center text-sm text-gray-300">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-3" />
+                    Full Learning Path generation
+                  </li>
+                  <li className="flex items-center text-sm text-gray-300">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-3" />
+                    Save & track progress on paths
+                  </li>
+                  <li className="flex items-center text-sm text-gray-300">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-3" />
+                    Earn achievements & certificates
+                  </li>
+                </ul>
+              </div>
+
+              {/* Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setShowSignupGate(false);
+                    openAuthModal('register');
+                  }}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-lg transition-colors uppercase tracking-wider text-sm"
+                >
+                  Create Free Account
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSignupGate(false);
+                    openAuthModal('login');
+                  }}
+                  className="w-full py-3 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-400 font-bold rounded-lg transition-colors uppercase tracking-wider text-sm"
+                >
+                  Already have an account? Sign In
+                </button>
+              </div>
+
+              {/* Search count indicator for quick dive limit */}
+              {gateReason === 'quick_limit' && (
+                <div className="mt-4 text-center">
+                  <span className="text-xs text-gray-500 font-mono">
+                    {quickDiveSearches}/{QUICK_DIVE_LIMIT} searches used
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
