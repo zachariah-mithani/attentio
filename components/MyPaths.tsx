@@ -122,16 +122,16 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose, onRec
   return (
     <div className="space-y-4">
       {paths.map((path, idx) => (
-        <div
+        <button
           key={path.id}
           onClick={() => onContinuePath(path.id)}
-          className="group relative tech-border bg-focus-surface hover:bg-focus-dim rounded-lg p-6 cursor-pointer transition-all duration-300 animate-fade-up"
+          className="group relative tech-border bg-focus-surface hover:bg-focus-dim rounded-lg p-6 cursor-pointer transition-all duration-300 animate-fade-up w-full text-left"
           style={{ animationDelay: `${idx * 100}ms` }}
         >
-          {/* Hover glow - pointer-events-none so it doesn't block clicks */}
+          {/* Hover glow */}
           <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 rounded-lg transition-colors pointer-events-none" />
           
-          <div className="relative z-10">
+          <div className="relative">
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
@@ -234,7 +234,7 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose, onRec
               </div>
             </div>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );
