@@ -451,6 +451,27 @@ export default function App() {
     }
   };
 
+  // Handle recreating a path with fresh content
+  const handleRecreatePath = async (topic: string, existingPathId: number) => {
+    setState(prev => ({ ...prev, isLoading: true, error: null, mode: ViewMode.PATH, topic }));
+    
+    try {
+      // Generate new learning path
+      const path = await fetchLearningPath(topic);
+      setState(prev => ({ ...prev, learningPath: path, isLoading: false }));
+      
+      // Auto-save with replace
+      setSavingPath(true);
+      const result = await saveLearningPath(topic, path, true);
+      setPathSaved(true);
+      handleContinuePath(result.pathId);
+    } catch (err: any) {
+      setState(prev => ({ ...prev, isLoading: false, error: err.message }));
+    } finally {
+      setSavingPath(false);
+    }
+  };
+
   // Handle progress updates
   const handleProgressUpdate = (completedTopics: number, completedStages: number) => {
     if (currentSavedPath) {
@@ -845,7 +866,8 @@ export default function App() {
                 <div className="tech-border bg-focus-surface/50 rounded-lg p-6">
                   <MyPaths 
                     onContinuePath={handleContinuePath} 
-                    onClose={() => handleModeSelect(ViewMode.PATH)} 
+                    onClose={() => handleModeSelect(ViewMode.PATH)}
+                    onRecreatePath={handleRecreatePath}
                   />
                 </div>
               </div>
@@ -863,7 +885,8 @@ export default function App() {
             </div>
             <MyPaths 
               onContinuePath={handleContinuePath} 
-              onClose={() => handleModeSelect(ViewMode.PATH)} 
+              onClose={() => handleModeSelect(ViewMode.PATH)}
+              onRecreatePath={handleRecreatePath}
             />
           </div>
         ) : state.mode === ViewMode.SAVED_PATH && currentSavedPath ? (

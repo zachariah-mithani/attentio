@@ -5,9 +5,10 @@ import { MapIcon, ArrowRightIcon, PlayCircleIcon } from './Icons';
 interface MyPathsProps {
   onContinuePath: (pathId: number) => void;
   onClose: () => void;
+  onRecreatePath?: (topic: string, existingPathId: number) => void;
 }
 
-export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose }) => {
+export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose, onRecreatePath }) => {
   const [paths, setPaths] = useState<SavedPath[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,15 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose }) => 
       setPaths(paths.filter(p => p.id !== pathId));
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleRecreate = (pathId: number, topic: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Recreate learning path for "${topic}"? This will generate a fresh path with new videos and replace your current progress.`)) return;
+    
+    if (onRecreatePath) {
+      onRecreatePath(topic, pathId);
     }
   };
 
@@ -118,8 +128,8 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose }) => 
           className="group relative tech-border bg-focus-surface hover:bg-focus-dim rounded-lg p-6 cursor-pointer transition-all duration-300 animate-fade-up"
           style={{ animationDelay: `${idx * 100}ms` }}
         >
-          {/* Hover glow */}
-          <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 rounded-lg transition-colors" />
+          {/* Hover glow - pointer-events-none so it doesn't block clicks */}
+          <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 rounded-lg transition-colors pointer-events-none" />
           
           <div className="relative z-10">
             {/* Header */}
@@ -187,6 +197,17 @@ export const MyPaths: React.FC<MyPathsProps> = ({ onContinuePath, onClose }) => 
               </div>
               
               <div className="flex items-center gap-2">
+                {onRecreatePath && (
+                  <button
+                    onClick={(e) => handleRecreate(path.id, path.topic, e)}
+                    className="p-2 text-gray-600 hover:text-emerald-400 transition-colors"
+                    title="Recreate path with fresh content"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   onClick={(e) => handleArchive(path.id, e)}
                   className="p-2 text-gray-600 hover:text-yellow-400 transition-colors"
