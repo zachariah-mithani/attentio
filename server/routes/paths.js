@@ -28,13 +28,23 @@ router.get('/', async (req, res) => {
       .from('user_paths')
       .select('id, topic, total_stages, total_topics, completed_stages, completed_topics, status, started_at, last_accessed_at, completed_at')
       .eq('user_id', req.user.id)
+      .neq('status', 'archived')
       .order('last_accessed_at', { ascending: false });
 
     if (error) throw error;
 
-    // Calculate progress percentage for each
+    // Transform to camelCase and calculate progress percentage
     const pathsWithProgress = (paths || []).map(p => ({
-      ...p,
+      id: p.id,
+      topic: p.topic,
+      totalStages: p.total_stages,
+      totalTopics: p.total_topics,
+      completedStages: p.completed_stages,
+      completedTopics: p.completed_topics,
+      status: p.status,
+      startedAt: p.started_at,
+      lastAccessedAt: p.last_accessed_at,
+      completedAt: p.completed_at,
       progress_percent: p.total_topics > 0 
         ? Math.round((p.completed_topics / p.total_topics) * 100) 
         : 0
