@@ -15,6 +15,73 @@ export enum ResourceType {
   BOOK = 'Book'
 }
 
+// Skill level determines course depth and difficulty
+export type SkillLevel = 'curious' | 'beginner' | 'intermediate' | 'advanced' | 'expert';
+
+export interface SkillLevelConfig {
+  id: SkillLevel;
+  label: string;
+  description: string;
+  icon: string;
+  units: { min: number; max: number };
+  levelsPerUnit: { min: number; max: number };
+  lessonsPerLevel: { min: number; max: number };
+  estimatedHours: { min: number; max: number };
+}
+
+export const SKILL_LEVELS: SkillLevelConfig[] = [
+  {
+    id: 'curious',
+    label: 'Just Curious',
+    description: 'Quick overview to understand the basics',
+    icon: '🌱',
+    units: { min: 1, max: 2 },
+    levelsPerUnit: { min: 2, max: 3 },
+    lessonsPerLevel: { min: 2, max: 3 },
+    estimatedHours: { min: 1, max: 3 },
+  },
+  {
+    id: 'beginner',
+    label: 'Beginner',
+    description: 'Learn fundamentals and core concepts',
+    icon: '📚',
+    units: { min: 2, max: 3 },
+    levelsPerUnit: { min: 3, max: 4 },
+    lessonsPerLevel: { min: 3, max: 4 },
+    estimatedHours: { min: 5, max: 10 },
+  },
+  {
+    id: 'intermediate',
+    label: 'Intermediate',
+    description: 'Build solid knowledge and practical skills',
+    icon: '🚀',
+    units: { min: 3, max: 4 },
+    levelsPerUnit: { min: 4, max: 5 },
+    lessonsPerLevel: { min: 4, max: 5 },
+    estimatedHours: { min: 15, max: 25 },
+  },
+  {
+    id: 'advanced',
+    label: 'Advanced',
+    description: 'Master complex topics and techniques',
+    icon: '⚡',
+    units: { min: 4, max: 5 },
+    levelsPerUnit: { min: 5, max: 6 },
+    lessonsPerLevel: { min: 4, max: 5 },
+    estimatedHours: { min: 30, max: 50 },
+  },
+  {
+    id: 'expert',
+    label: 'Expert',
+    description: 'Comprehensive mastery of the subject',
+    icon: '👑',
+    units: { min: 5, max: 7 },
+    levelsPerUnit: { min: 5, max: 7 },
+    lessonsPerLevel: { min: 5, max: 6 },
+    estimatedHours: { min: 50, max: 100 },
+  },
+];
+
 export interface Resource {
   title: string;
   type: string; // "Video", "Article", "Course", "Podcast"
@@ -71,10 +138,12 @@ export interface Unit {
 // The complete learning path
 export interface LearningPath {
   topic: string;
+  skillLevel: SkillLevel;
   totalUnits: number;
   totalLevels: number;
   totalLessons: number;
   totalXp: number;
+  estimatedHours: number;
   units: Unit[];
 }
 

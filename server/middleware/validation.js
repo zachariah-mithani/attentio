@@ -100,7 +100,12 @@ export const validateTopic = (req, res, next) => {
   next();
 };
 
-// Middleware to validate path data
+// Helper to check if path data is new Duolingo-style format
+const isNewPathFormat = (pathData) => {
+  return pathData && typeof pathData === 'object' && 'units' in pathData && Array.isArray(pathData.units);
+};
+
+// Middleware to validate path data (supports both old and new formats)
 export const validatePathData = (req, res, next) => {
   const { topic, pathData } = req.body;
 
@@ -108,7 +113,36 @@ export const validatePathData = (req, res, next) => {
     return res.status(400).json({ error: 'Valid topic required' });
   }
 
-  if (!pathData || !Array.isArray(pathData) || pathData.length === 0) {
+  if (!pathData) {
+    return res.status(400).json({ error: 'Valid path data required' });
+  }
+
+  // Check for new Duolingo-style format
+  if (isNewPathFormat(pathData)) {
+    // Validate new format structure
+    if (pathData.units.length === 0) {
+      return res.status(400).json({ error: 'Path must have at least one unit' });
+    }
+    
+    for (const unit of pathData.units) {
+      if (!unit.title || !unit.levels || !Array.isArray(unit.levels) || unit.levels.length === 0) {
+        return res.status(400).json({ error: 'Invalid unit structure' });
+      }
+      
+      for (const level of unit.levels) {
+        if (!level.title || !level.lessons || !Array.isArray(level.lessons) || level.lessons.length === 0) {
+          return res.status(400).json({ error: 'Invalid level structure' });
+        }
+      }
+    }
+    
+    req.body.topic = sanitizeString(topic);
+    req.body.isNewFormat = true;
+    return next();
+  }
+  
+  // Validate old format (array of stages)
+  if (!Array.isArray(pathData) || pathData.length === 0) {
     return res.status(400).json({ error: 'Valid path data required' });
   }
 
@@ -120,6 +154,7 @@ export const validatePathData = (req, res, next) => {
   }
 
   req.body.topic = sanitizeString(topic);
+  req.body.isNewFormat = false;
 
   next();
 };

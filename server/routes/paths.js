@@ -9,8 +9,32 @@ const router = Router();
 // All routes require authentication
 router.use(authMiddleware);
 
-// Helper to calculate totals from path data
+// Helper to check if path data is new Duolingo-style format
+const isNewPathFormat = (pathData) => {
+  return pathData && typeof pathData === 'object' && 'units' in pathData && Array.isArray(pathData.units);
+};
+
+// Helper to calculate totals from path data (supports both old and new formats)
 const calculatePathTotals = (pathData) => {
+  // New Duolingo-style format
+  if (isNewPathFormat(pathData)) {
+    let totalLessons = 0;
+    let totalLevels = 0;
+    
+    pathData.units.forEach(unit => {
+      unit.levels.forEach(level => {
+        totalLevels++;
+        totalLessons += level.lessons?.length || 0;
+      });
+    });
+    
+    return {
+      totalStages: pathData.units.length, // Units are like stages
+      totalTopics: totalLessons // Lessons are like topics
+    };
+  }
+  
+  // Old format (array of stages)
   let totalTopics = 0;
   pathData.forEach(stage => {
     totalTopics += stage.keyTopics?.length || 0;

@@ -223,24 +223,86 @@ async function searchYouTubeVideo(query) {
   }
 }
 
+// Skill level configurations
+const SKILL_CONFIGS = {
+  curious: {
+    units: { min: 1, max: 2 },
+    levelsPerUnit: { min: 2, max: 3 },
+    lessonsPerLevel: { min: 2, max: 3 },
+    estimatedHours: { min: 1, max: 3 },
+    difficulty: 'very basic overview',
+    depth: 'surface-level introduction',
+  },
+  beginner: {
+    units: { min: 2, max: 3 },
+    levelsPerUnit: { min: 3, max: 4 },
+    lessonsPerLevel: { min: 3, max: 4 },
+    estimatedHours: { min: 5, max: 10 },
+    difficulty: 'beginner-friendly fundamentals',
+    depth: 'solid foundation with core concepts',
+  },
+  intermediate: {
+    units: { min: 3, max: 4 },
+    levelsPerUnit: { min: 4, max: 5 },
+    lessonsPerLevel: { min: 4, max: 5 },
+    estimatedHours: { min: 15, max: 25 },
+    difficulty: 'intermediate with practical applications',
+    depth: 'comprehensive coverage with real-world skills',
+  },
+  advanced: {
+    units: { min: 4, max: 5 },
+    levelsPerUnit: { min: 5, max: 6 },
+    lessonsPerLevel: { min: 4, max: 5 },
+    estimatedHours: { min: 30, max: 50 },
+    difficulty: 'advanced techniques and complex topics',
+    depth: 'deep expertise with nuanced understanding',
+  },
+  expert: {
+    units: { min: 5, max: 7 },
+    levelsPerUnit: { min: 5, max: 7 },
+    lessonsPerLevel: { min: 5, max: 6 },
+    estimatedHours: { min: 50, max: 100 },
+    difficulty: 'expert-level mastery',
+    depth: 'comprehensive mastery including edge cases, history, and cutting-edge developments',
+  },
+};
+
 // POST /api/ai/learning-path - Generate learning path (with stricter rate limit)
 router.post('/learning-path', pathGenerationLimiter, validateTopic, async (req, res) => {
   try {
-    const { topic } = req.body;
+    const { topic, skillLevel = 'beginner' } = req.body;
+    
+    // Get config for skill level
+    const config = SKILL_CONFIGS[skillLevel] || SKILL_CONFIGS.beginner;
 
     // Step 1: Generate Duolingo-style learning path structure with AI
-    const prompt = `Create a DUOLINGO-STYLE learning path for "${topic}".
+    const prompt = `Create a comprehensive DUOLINGO-STYLE learning path for "${topic}" at the ${skillLevel.toUpperCase()} level.
 
-STRUCTURE (like Duolingo):
-- 2-4 UNITS (major sections, like Duolingo's unit circles)
-- Each unit has 3-5 LEVELS (like Duolingo skills/crowns)
-- Each level has 3-5 LESSONS (bite-sized, 3-8 minute videos each)
+TARGET SKILL LEVEL: ${skillLevel.toUpperCase()}
+- Difficulty: ${config.difficulty}
+- Depth: ${config.depth}
+- Estimated learning time: ${config.estimatedHours.min}-${config.estimatedHours.max} hours
 
-LESSON DESIGN PRINCIPLES:
-- Each lesson should be ONE focused concept (not multiple topics crammed together)
-- Lessons should be completable in 3-8 minutes
-- Progress from simple to complex within each level
-- Each lesson builds on the previous one
+REQUIRED STRUCTURE:
+- Generate ${config.units.min}-${config.units.max} UNITS (major sections/modules)
+- Each unit MUST have ${config.levelsPerUnit.min}-${config.levelsPerUnit.max} LEVELS (skills to master)
+- Each level MUST have ${config.lessonsPerLevel.min}-${config.lessonsPerLevel.max} LESSONS (individual video lessons)
+
+UNIT DESIGN:
+- Units should cover distinct major areas of the topic
+- Progress from foundational to more advanced within the path
+- Each unit builds on knowledge from previous units
+
+LEVEL DESIGN:
+- Each level focuses on a specific skill or concept cluster
+- Levels within a unit progress in difficulty
+- Include a practical challenge project for each level
+
+LESSON DESIGN:
+- Each lesson = ONE focused concept (3-10 minute video)
+- Lessons should be ATOMIC - teach one thing well
+- Use engaging, curiosity-sparking titles
+- Progress logically within each level
 
 Return ONLY a valid JSON object with this EXACT structure:
 {
@@ -248,38 +310,38 @@ Return ONLY a valid JSON object with this EXACT structure:
   "units": [
     {
       "unitNumber": 1,
-      "title": "Unit Title (e.g., 'Foundations')",
-      "description": "What this unit covers",
-      "color": "#hex color for this unit",
+      "title": "Unit Title",
+      "description": "What this unit covers (1-2 sentences)",
+      "color": "#hexcolor",
       "levels": [
         {
           "levelNumber": 1,
-          "title": "Level Title (e.g., 'Getting Started')",
-          "description": "What you'll learn in this level",
-          "icon": "emoji icon",
+          "title": "Level Title",
+          "description": "What you'll learn (1 sentence)",
+          "icon": "emoji",
           "lessons": [
             {
-              "title": "Lesson Title (e.g., 'What is X?')",
+              "title": "Lesson Title",
               "description": "One sentence about this lesson",
-              "searchQuery": "specific YouTube search query for this exact lesson"
+              "searchQuery": "specific YouTube search query"
             }
           ],
-          "challengeProject": "Optional mini-project for this level"
+          "challengeProject": "Hands-on project description"
         }
       ],
-      "bossChallenge": "Final project for completing this unit"
+      "bossChallenge": "Major project combining all unit skills"
     }
   ]
 }
 
-IMPORTANT RULES:
-1. searchQuery should be VERY SPECIFIC to find a single focused video (e.g., "what is a variable python tutorial beginner")
-2. Lessons should be ATOMIC - one concept per lesson
-3. Use engaging, curiosity-sparking lesson titles
-4. Colors should be vibrant and distinct for each unit (emerald, purple, amber, blue, etc.)
-5. Icons should be relevant emojis (🎯, 🔥, 💡, 🚀, ⚡, 🎨, 🔧, etc.)
+CRITICAL RULES:
+1. MUST generate the exact number of units, levels, and lessons specified above
+2. searchQuery should be VERY SPECIFIC for YouTube (e.g., "${topic} basics tutorial for beginners")
+3. Colors: use vibrant, distinct hex colors (#10b981, #8b5cf6, #f59e0b, #3b82f6, #ef4444, #ec4899)
+4. Icons: use relevant emojis (🎯 🔥 💡 🚀 ⚡ 🎨 🔧 📚 🧠 💪 🌟 🎓 🔬 🎪)
+5. Make content progressively more ${skillLevel === 'curious' ? 'interesting' : skillLevel === 'expert' ? 'specialized and nuanced' : 'challenging'}
 
-Return ONLY the JSON object, no other text.`;
+Return ONLY the JSON object, no markdown, no explanation.`;
 
     const text = await callOpenRouter(prompt);
     
@@ -294,6 +356,7 @@ Return ONLY the JSON object, no other text.`;
     let totalLessons = 0;
     let totalLevels = 0;
     let totalXp = 0;
+    let totalDurationMin = 0;
     
     const units = await Promise.all(rawPath.units.map(async (unit, unitIndex) => {
       const levels = await Promise.all(unit.levels.map(async (level, levelIndex) => {
@@ -306,6 +369,12 @@ Return ONLY the JSON object, no other text.`;
           
           // Search YouTube for this specific lesson
           const video = await searchYouTubeVideo(lesson.searchQuery || `${topic} ${lesson.title}`);
+          
+          if (video && video.durationMin) {
+            totalDurationMin += video.durationMin;
+          } else {
+            totalDurationMin += 7; // Estimate 7 min per lesson if no video found
+          }
           
           return {
             id: `u${unitIndex + 1}-l${levelIndex + 1}-s${lessonIndex + 1}`,
@@ -351,12 +420,17 @@ Return ONLY the JSON object, no other text.`;
       };
     }));
     
+    // Calculate estimated hours (video time + practice time)
+    const estimatedHours = Math.round((totalDurationMin / 60) * 1.5); // 1.5x for practice
+    
     const learningPath = {
       topic: rawPath.topic || topic,
+      skillLevel,
       totalUnits: units.length,
       totalLevels,
       totalLessons,
       totalXp,
+      estimatedHours: Math.max(estimatedHours, config.estimatedHours.min),
       units,
     };
     

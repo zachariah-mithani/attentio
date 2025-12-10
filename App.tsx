@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { ViewMode, AppState, Resource, PathStage, LearningPath } from './types';
+import { ViewMode, AppState, Resource, PathStage, LearningPath, SkillLevel, SKILL_LEVELS } from './types';
 import { fetchQuickResources, fetchLearningPath, fetchSearchSuggestions } from './services/geminiService';
 import { saveLearningPath, getPathWithProgress, PathWithProgress } from './services/pathService';
 import {
@@ -290,8 +290,128 @@ const StageNode: React.FC<{ stage: PathStage, index: number, isLast: boolean }> 
   );
 };
 
+// Expandable Level Preview Component
+const LevelPreview: React.FC<{ 
+  level: LearningPath['units'][0]['levels'][0]; 
+  unitColor: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}> = ({ level, unitColor, isExpanded, onToggle }) => {
+  return (
+    <div className="border border-gray-700 rounded-xl overflow-hidden bg-focus-dim/50">
+      {/* Level Header - Clickable */}
+      <button
+        onClick={onToggle}
+        className="w-full p-4 flex items-center gap-3 hover:bg-white/5 transition-colors text-left"
+      >
+        <span className="text-2xl">{level.icon}</span>
+        <div className="flex-grow">
+          <h4 className="font-semibold text-white">{level.title}</h4>
+          <p className="text-xs text-gray-500">{level.description}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+            {level.totalXp} XP
+          </span>
+          <span className="text-xs text-gray-500">{level.lessons.length} lessons</span>
+          <svg 
+            className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+      
+      {/* Expanded Lessons */}
+      {isExpanded && (
+        <div className="border-t border-gray-700 bg-black/20">
+          <div className="p-4 space-y-3">
+            {level.lessons.map((lesson, lessonIndex) => (
+              <div 
+                key={lesson.id}
+                className="flex items-start gap-3 p-3 rounded-lg bg-focus-surface border border-gray-800"
+              >
+                {/* Lesson number */}
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+                  style={{ backgroundColor: unitColor + '20', color: unitColor }}
+                >
+                  {lessonIndex + 1}
+                </div>
+                
+                {/* Lesson info */}
+                <div className="flex-grow min-w-0">
+                  <h5 className="font-medium text-white text-sm">{lesson.title}</h5>
+                  <p className="text-xs text-gray-500 mt-0.5">{lesson.description}</p>
+                  
+                  {/* Video preview if available */}
+                  {lesson.resource?.videoId && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                      <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z"/>
+                        <path fill="white" d="M9.545 15.568V8.432L15.818 12z"/>
+                      </svg>
+                      <span className="truncate">{lesson.resource.title}</span>
+                      {lesson.resource.durationMin > 0 && (
+                        <span className="text-gray-600">• {lesson.resource.durationMin}m</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* XP badge */}
+                <div className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded shrink-0">
+                  +{lesson.xpReward} XP
+                </div>
+              </div>
+            ))}
+            
+            {/* Challenge project */}
+            {level.challengeProject && (
+              <div className="mt-4 p-3 rounded-lg border-2 border-dashed border-amber-500/30 bg-amber-500/5">
+                <div className="flex items-center gap-2 text-amber-400 text-sm">
+                  <span>🎯</span>
+                  <span className="font-semibold">Level Challenge:</span>
+                </div>
+                <p className="text-gray-400 text-sm mt-1">{level.challengeProject}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Preview component for new Duolingo-style learning path (before saving)
 const LearningPathPreview: React.FC<{ path: LearningPath }> = ({ path }) => {
+  const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set());
+  
+  const toggleLevel = (levelId: string) => {
+    setExpandedLevels(prev => {
+      const next = new Set(prev);
+      if (next.has(levelId)) {
+        next.delete(levelId);
+      } else {
+        next.add(levelId);
+      }
+      return next;
+    });
+  };
+  
+  const expandAll = () => {
+    const allIds = path.units.flatMap(u => u.levels.map(l => l.id));
+    setExpandedLevels(new Set(allIds));
+  };
+  
+  const collapseAll = () => {
+    setExpandedLevels(new Set());
+  };
+  
+  // Find skill level config for display
+  const skillLevelConfig = SKILL_LEVELS.find(s => s.id === path.skillLevel);
+  
   return (
     <div className="relative py-12 px-4">
       {/* Background Pattern */}
@@ -304,46 +424,73 @@ const LearningPathPreview: React.FC<{ path: LearningPath }> = ({ path }) => {
       </div>
       
       {/* Header */}
-      <div className="flex flex-col items-center mb-16 animate-fade-up">
+      <div className="flex flex-col items-center mb-12 animate-fade-up">
         <div className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] mb-6">
-          <h1 className="text-2xl tracking-tight">{path.topic}</h1>
+          <h1 className="text-2xl tracking-tight capitalize">{path.topic}</h1>
         </div>
         
+        {/* Skill Level Badge */}
+        {skillLevelConfig && (
+          <div className="mb-4 px-4 py-2 bg-focus-surface border border-purple-500/30 rounded-full flex items-center gap-2">
+            <span className="text-xl">{skillLevelConfig.icon}</span>
+            <span className="text-purple-400 font-semibold">{skillLevelConfig.label}</span>
+            <span className="text-gray-500 text-sm">• {path.estimatedHours}+ hours</span>
+          </div>
+        )}
+        
         {/* Stats */}
-        <div className="flex items-center gap-6 bg-focus-surface border border-amber-500/20 rounded-full px-6 py-3">
+        <div className="flex flex-wrap items-center justify-center gap-4 bg-focus-surface border border-amber-500/20 rounded-2xl px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="text-2xl">⚡</span>
             <div className="text-2xl font-bold text-amber-400 font-mono">{path.totalXp}</div>
             <div className="text-sm text-gray-500">XP</div>
           </div>
-          <div className="h-8 w-px bg-gray-700" />
-          <div className="text-sm text-gray-400">
-            <span className="text-white font-bold">{path.totalUnits}</span> Units • 
-            <span className="text-white font-bold"> {path.totalLevels}</span> Levels • 
-            <span className="text-white font-bold"> {path.totalLessons}</span> Lessons
+          <div className="h-8 w-px bg-gray-700 hidden sm:block" />
+          <div className="text-sm text-gray-400 flex flex-wrap gap-2 justify-center">
+            <span><span className="text-white font-bold">{path.totalUnits}</span> Units</span>
+            <span>•</span>
+            <span><span className="text-white font-bold">{path.totalLevels}</span> Levels</span>
+            <span>•</span>
+            <span><span className="text-white font-bold">{path.totalLessons}</span> Lessons</span>
           </div>
+        </div>
+        
+        {/* Expand/Collapse buttons */}
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={expandAll}
+            className="px-3 py-1.5 text-xs font-mono text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/10 transition-colors"
+          >
+            Expand All
+          </button>
+          <button
+            onClick={collapseAll}
+            className="px-3 py-1.5 text-xs font-mono text-gray-400 border border-gray-700 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            Collapse All
+          </button>
         </div>
       </div>
       
-      {/* Units Preview */}
+      {/* Units with Expanded Levels */}
       <div className="max-w-4xl mx-auto space-y-8">
         {path.units.map((unit, unitIndex) => (
           <div 
             key={unit.id}
             className="animate-fade-up"
-            style={{ animationDelay: `${unitIndex * 150}ms` }}
+            style={{ animationDelay: `${unitIndex * 100}ms` }}
           >
             {/* Unit Header */}
             <div 
-              className="relative p-6 rounded-2xl border-2 overflow-hidden"
+              className="relative p-6 rounded-t-2xl border-2 border-b-0"
               style={{ 
                 borderColor: unit.color + '40',
-                background: `linear-gradient(135deg, ${unit.color}10 0%, transparent 50%)`
+                background: `linear-gradient(135deg, ${unit.color}15 0%, transparent 50%)`
               }}
             >
               {/* Unit number badge */}
               <div 
-                className="absolute top-4 left-4 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg"
+                className="absolute top-4 left-4 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shadow-lg"
                 style={{ backgroundColor: unit.color, color: 'black' }}
               >
                 {unit.unitNumber}
@@ -353,40 +500,53 @@ const LearningPathPreview: React.FC<{ path: LearningPath }> = ({ path }) => {
                 <h2 className="text-2xl font-bold text-white mb-1">{unit.title}</h2>
                 <p className="text-sm text-gray-400">{unit.description}</p>
                 
-                {/* Levels preview */}
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {unit.levels.map((level, levelIndex) => (
-                    <div 
-                      key={level.id}
-                      className="flex items-center gap-2 px-3 py-2 bg-focus-dim rounded-lg border border-gray-700"
-                    >
-                      <span className="text-lg">{level.icon}</span>
-                      <span className="text-sm text-gray-300">{level.title}</span>
-                      <span className="text-xs text-gray-500 font-mono">
-                        {level.lessons.length} lessons
-                      </span>
-                    </div>
-                  ))}
+                <div className="mt-3 flex items-center gap-4 text-sm">
+                  <span className="text-gray-500">
+                    {unit.levels.length} levels • {unit.levels.reduce((sum, l) => sum + l.lessons.length, 0)} lessons
+                  </span>
                 </div>
-                
-                {/* Boss challenge */}
-                {unit.bossChallenge && (
-                  <div className="mt-4 flex items-center gap-2 text-sm text-amber-400">
-                    <span>👑</span>
-                    <span className="font-medium">Boss Challenge:</span>
-                    <span className="text-gray-400">{unit.bossChallenge}</span>
-                  </div>
-                )}
               </div>
+            </div>
+            
+            {/* Levels List */}
+            <div 
+              className="rounded-b-2xl border-2 border-t-0 p-4 space-y-3"
+              style={{ borderColor: unit.color + '40' }}
+            >
+              {unit.levels.map((level) => (
+                <LevelPreview
+                  key={level.id}
+                  level={level}
+                  unitColor={unit.color}
+                  isExpanded={expandedLevels.has(level.id)}
+                  onToggle={() => toggleLevel(level.id)}
+                />
+              ))}
+              
+              {/* Boss challenge */}
+              {unit.bossChallenge && (
+                <div className="mt-4 p-4 rounded-xl border-2 border-dashed bg-gradient-to-r from-amber-500/10 to-orange-500/10"
+                  style={{ borderColor: '#f59e0b50' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">👑</span>
+                    <div>
+                      <div className="text-amber-400 font-bold text-sm uppercase tracking-wider">Unit Boss Challenge</div>
+                      <p className="text-white mt-1">{unit.bossChallenge}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
       
-      {/* Footer */}
-      <div className="flex justify-center mt-16 animate-fade-up">
-        <div className="px-8 py-3 border-2 border-dashed border-emerald-500/30 text-emerald-500/60 font-mono text-sm tracking-[0.2em] uppercase rounded-full">
-          Save to start your journey
+      {/* Footer CTA */}
+      <div className="flex flex-col items-center mt-16 animate-fade-up gap-4">
+        <div className="text-center">
+          <p className="text-gray-400 text-sm mb-2">Ready to begin your learning journey?</p>
+          <p className="text-emerald-400 font-mono text-xs">Click "Save Path to My Account" above to start tracking progress</p>
         </div>
       </div>
     </div>
@@ -489,6 +649,10 @@ export default function App() {
   const [savingPath, setSavingPath] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [pathSaved, setPathSaved] = useState(false);
+
+  // Skill level selection for learning paths
+  const [selectedSkillLevel, setSelectedSkillLevel] = useState<SkillLevel>('beginner');
+  const [showSkillSelector, setShowSkillSelector] = useState(false);
 
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -640,7 +804,7 @@ export default function App() {
     setSaveError(null);
   };
 
-  const executeSearch = useCallback(async (searchTopic: string) => {
+  const executeSearch = useCallback(async (searchTopic: string, skillLevel?: SkillLevel) => {
     if (!searchTopic.trim()) return;
 
     // Check Quick Dive limit for non-authenticated users
@@ -653,6 +817,7 @@ export default function App() {
 
     setState(prev => ({ ...prev, topic: searchTopic, isLoading: true, error: null, quickResources: [], learningPath: [] }));
     setSuggestions([]); // Clear suggestions on search
+    setShowSkillSelector(false); // Hide skill selector
 
     try {
       if (state.mode === ViewMode.QUICK) {
@@ -663,17 +828,27 @@ export default function App() {
         const data = await fetchQuickResources(searchTopic);
         setState(prev => ({ ...prev, quickResources: data, isLoading: false }));
       } else if (state.mode === ViewMode.PATH) {
-        const data = await fetchLearningPath(searchTopic);
+        const data = await fetchLearningPath(searchTopic, skillLevel || selectedSkillLevel);
         setState(prev => ({ ...prev, learningPath: data, isLoading: false }));
       }
     } catch (err) {
       setState(prev => ({ ...prev, isLoading: false, error: "System unable to retrieve data. Retry sequence initiated." }));
     }
-  }, [state.mode, isAuthenticated, quickDiveSearches]);
+  }, [state.mode, isAuthenticated, quickDiveSearches, selectedSkillLevel]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    executeSearch(state.topic);
+    if (state.mode === ViewMode.PATH && state.topic.trim()) {
+      // Show skill selector for learning paths
+      setShowSkillSelector(true);
+    } else {
+      executeSearch(state.topic);
+    }
+  };
+
+  const handleSkillLevelSelect = (level: SkillLevel) => {
+    setSelectedSkillLevel(level);
+    executeSearch(state.topic, level);
   };
 
   // Filtering and Sorting Logic
@@ -1137,6 +1312,67 @@ export default function App() {
                 </div>
               )}
             </form>
+
+            {/* Skill Level Selector for Learning Paths */}
+            {showSkillSelector && state.mode === ViewMode.PATH && (
+              <div className="mb-12 animate-fade-up">
+                <div className="text-center mb-6">
+                  <h3 className="text-2xl font-bold text-white mb-2">Choose Your Target Skill Level</h3>
+                  <p className="text-gray-400">
+                    Learning <span className="text-emerald-400 font-semibold capitalize">{state.topic}</span> — How deep do you want to go?
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 max-w-6xl mx-auto">
+                  {SKILL_LEVELS.map((level) => (
+                    <button
+                      key={level.id}
+                      onClick={() => handleSkillLevelSelect(level.id)}
+                      className={`group relative p-5 rounded-xl border-2 transition-all duration-300 text-left hover:scale-105 ${
+                        selectedSkillLevel === level.id
+                          ? 'border-emerald-500 bg-emerald-500/10'
+                          : 'border-gray-700 bg-focus-surface hover:border-emerald-500/50'
+                      }`}
+                    >
+                      {/* Icon */}
+                      <div className="text-4xl mb-3">{level.icon}</div>
+                      
+                      {/* Title */}
+                      <h4 className="text-lg font-bold text-white mb-1">{level.label}</h4>
+                      
+                      {/* Description */}
+                      <p className="text-xs text-gray-400 mb-3 line-clamp-2">{level.description}</p>
+                      
+                      {/* Stats */}
+                      <div className="text-[10px] font-mono text-gray-500 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Units:</span>
+                          <span className="text-emerald-400">{level.units.min}-{level.units.max}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Est. Time:</span>
+                          <span className="text-amber-400">{level.estimatedHours.min}-{level.estimatedHours.max}h</span>
+                        </div>
+                      </div>
+                      
+                      {/* Selected indicator */}
+                      {selectedSkillLevel === level.id && (
+                        <div className="absolute top-2 right-2 w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="text-center mt-6">
+                  <button
+                    onClick={() => setShowSkillSelector(false)}
+                    className="text-sm text-gray-500 hover:text-gray-400 transition-colors"
+                  >
+                    ← Change topic
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Search Suggestions */}
             {suggestions.length > 0 && (
