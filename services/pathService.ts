@@ -1,4 +1,4 @@
-import { PathStage } from '../types';
+import { PathStage, LearningPath } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -22,6 +22,12 @@ export interface SavedPath {
   lastAccessedAt: string;
   completedAt: string | null;
   progress_percent: number;
+  // New Duolingo-style fields
+  totalUnits?: number;
+  totalLevels?: number;
+  totalLessons?: number;
+  totalXp?: number;
+  earnedXp?: number;
 }
 
 export interface PathWithProgress {
@@ -35,7 +41,7 @@ export interface PathWithProgress {
   startedAt: string;
   lastAccessedAt: string;
   completedAt: string | null;
-  pathData: PathStage[];
+  pathData: PathStage[] | LearningPath; // Support both old and new formats
   progressMap: Record<string, {
     stage_index: number;
     item_type: string;
@@ -75,10 +81,10 @@ export const getPathWithProgress = async (pathId: number): Promise<PathWithProgr
   return response.json();
 };
 
-// Save a new learning path
+// Save a new learning path (supports both old and new formats)
 export const saveLearningPath = async (
   topic: string, 
-  pathData: PathStage[], 
+  pathData: PathStage[] | LearningPath, 
   replace: boolean = false
 ): Promise<{ pathId: number; existingPathId?: number }> => {
   const response = await fetch(`${API_URL}/paths`, {

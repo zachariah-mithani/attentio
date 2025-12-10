@@ -1,4 +1,4 @@
-import { Resource, PathStage } from "../types";
+import { Resource, PathStage, LearningPath } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -97,7 +97,7 @@ export const fetchQuickResources = async (topic: string): Promise<Resource[]> =>
   return resources;
 };
 
-export const fetchLearningPath = async (topic: string): Promise<PathStage[]> => {
+export const fetchLearningPath = async (topic: string): Promise<LearningPath> => {
   try {
     const response = await fetch(`${API_URL}/ai/learning-path`, {
       method: 'POST',

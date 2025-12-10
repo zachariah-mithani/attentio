@@ -22,40 +22,61 @@ const RollingCounter: React.FC<{
   const [displayValue, setDisplayValue] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
   const counterRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Always reset to 0 when component mounts or value changes
+    setDisplayValue(0);
+    setHasStarted(false);
+    
     // Start animation after delay
     const startTimer = setTimeout(() => {
       setHasStarted(true);
     }, delay);
 
-    return () => clearTimeout(startTimer);
-  }, [delay]);
+    return () => {
+      clearTimeout(startTimer);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [delay, value]);
 
   useEffect(() => {
-    if (!hasStarted || value === 0) return;
+    if (!hasStarted) return;
+    
+    // Handle zero value case - just stay at 0
+    if (value === 0) {
+      setDisplayValue(0);
+      return;
+    }
 
-    const startTime = Date.now();
-    const startValue = 0;
+    const startTime = performance.now();
 
-    const updateCounter = () => {
-      const elapsed = Date.now() - startTime;
+    const updateCounter = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Easing function for smooth animation
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      const currentValue = Math.floor(startValue + (value - startValue) * easeOutQuart);
+      // Easing function for smooth animation (ease out cubic for snappier feel)
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+      const currentValue = Math.floor(value * easeOutCubic);
       
       setDisplayValue(currentValue);
 
       if (progress < 1) {
-        requestAnimationFrame(updateCounter);
+        animationRef.current = requestAnimationFrame(updateCounter);
       } else {
         setDisplayValue(value);
       }
     };
 
-    requestAnimationFrame(updateCounter);
+    animationRef.current = requestAnimationFrame(updateCounter);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
   }, [value, duration, hasStarted]);
 
   // Format large numbers

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { ViewMode, AppState, Resource, PathStage } from './types';
+import { ViewMode, AppState, Resource, PathStage, LearningPath } from './types';
 import { fetchQuickResources, fetchLearningPath, fetchSearchSuggestions } from './services/geminiService';
 import { saveLearningPath, getPathWithProgress, PathWithProgress } from './services/pathService';
 import {
@@ -200,7 +200,7 @@ const StageNode: React.FC<{ stage: PathStage, index: number, isLast: boolean }> 
             const topicName = typeof topic === 'string' ? topic : topic.name;
             const resource = typeof topic === 'object' ? topic.resource : null;
             const hasVideo = resource?.videoId;
-            
+
             return (
               <div key={i} className="group relative flex flex-col">
                 {/* Visual Connector Line for Desktop */}
@@ -221,7 +221,7 @@ const StageNode: React.FC<{ stage: PathStage, index: number, isLast: boolean }> 
                       />
                     </div>
                   )}
-                  
+
                   {/* Topic Info */}
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -229,7 +229,7 @@ const StageNode: React.FC<{ stage: PathStage, index: number, isLast: boolean }> 
                       <span className="text-[10px] text-emerald-500/40 font-mono">NODE {index + 1}.{i + 1}</span>
                     </div>
                     <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors block">{topicName}</span>
-                    
+
                     {/* Video metadata */}
                     {resource && (
                       <div className="mt-2 pt-2 border-t border-emerald-500/10">
@@ -290,7 +290,111 @@ const StageNode: React.FC<{ stage: PathStage, index: number, isLast: boolean }> 
   );
 };
 
-const LearningTree: React.FC<{ path: PathStage[] }> = ({ path }) => {
+// Preview component for new Duolingo-style learning path (before saving)
+const LearningPathPreview: React.FC<{ path: LearningPath }> = ({ path }) => {
+  return (
+    <div className="relative py-12 px-4">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-5">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `radial-gradient(circle at 25% 25%, #10b981 1px, transparent 1px),
+                           radial-gradient(circle at 75% 75%, #10b981 1px, transparent 1px)`,
+          backgroundSize: '60px 60px'
+        }} />
+      </div>
+      
+      {/* Header */}
+      <div className="flex flex-col items-center mb-16 animate-fade-up">
+        <div className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-bold rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] mb-6">
+          <h1 className="text-2xl tracking-tight">{path.topic}</h1>
+        </div>
+        
+        {/* Stats */}
+        <div className="flex items-center gap-6 bg-focus-surface border border-amber-500/20 rounded-full px-6 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">⚡</span>
+            <div className="text-2xl font-bold text-amber-400 font-mono">{path.totalXp}</div>
+            <div className="text-sm text-gray-500">XP</div>
+          </div>
+          <div className="h-8 w-px bg-gray-700" />
+          <div className="text-sm text-gray-400">
+            <span className="text-white font-bold">{path.totalUnits}</span> Units • 
+            <span className="text-white font-bold"> {path.totalLevels}</span> Levels • 
+            <span className="text-white font-bold"> {path.totalLessons}</span> Lessons
+          </div>
+        </div>
+      </div>
+      
+      {/* Units Preview */}
+      <div className="max-w-4xl mx-auto space-y-8">
+        {path.units.map((unit, unitIndex) => (
+          <div 
+            key={unit.id}
+            className="animate-fade-up"
+            style={{ animationDelay: `${unitIndex * 150}ms` }}
+          >
+            {/* Unit Header */}
+            <div 
+              className="relative p-6 rounded-2xl border-2 overflow-hidden"
+              style={{ 
+                borderColor: unit.color + '40',
+                background: `linear-gradient(135deg, ${unit.color}10 0%, transparent 50%)`
+              }}
+            >
+              {/* Unit number badge */}
+              <div 
+                className="absolute top-4 left-4 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg"
+                style={{ backgroundColor: unit.color, color: 'black' }}
+              >
+                {unit.unitNumber}
+              </div>
+              
+              <div className="ml-14">
+                <h2 className="text-2xl font-bold text-white mb-1">{unit.title}</h2>
+                <p className="text-sm text-gray-400">{unit.description}</p>
+                
+                {/* Levels preview */}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {unit.levels.map((level, levelIndex) => (
+                    <div 
+                      key={level.id}
+                      className="flex items-center gap-2 px-3 py-2 bg-focus-dim rounded-lg border border-gray-700"
+                    >
+                      <span className="text-lg">{level.icon}</span>
+                      <span className="text-sm text-gray-300">{level.title}</span>
+                      <span className="text-xs text-gray-500 font-mono">
+                        {level.lessons.length} lessons
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Boss challenge */}
+                {unit.bossChallenge && (
+                  <div className="mt-4 flex items-center gap-2 text-sm text-amber-400">
+                    <span>👑</span>
+                    <span className="font-medium">Boss Challenge:</span>
+                    <span className="text-gray-400">{unit.bossChallenge}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* Footer */}
+      <div className="flex justify-center mt-16 animate-fade-up">
+        <div className="px-8 py-3 border-2 border-dashed border-emerald-500/30 text-emerald-500/60 font-mono text-sm tracking-[0.2em] uppercase rounded-full">
+          Save to start your journey
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Legacy preview for old path format
+const LegacyLearningTree: React.FC<{ path: PathStage[] }> = ({ path }) => {
   return (
     <div className="relative py-12 px-4">
       {/* Background Circuit Lines (Decorative) */}
@@ -334,6 +438,16 @@ const LearningTree: React.FC<{ path: PathStage[] }> = ({ path }) => {
   );
 };
 
+// Combined preview component that handles both formats
+const LearningTreePreview: React.FC<{ path: PathStage[] | LearningPath }> = ({ path }) => {
+  // Check if it's the new format
+  if ('units' in path && Array.isArray(path.units)) {
+    return <LearningPathPreview path={path as LearningPath} />;
+  }
+  // Otherwise use legacy format
+  return <LegacyLearningTree path={path as PathStage[]} />;
+};
+
 
 export default function App() {
   const [state, setState] = useState<AppState>({
@@ -350,32 +464,32 @@ export default function App() {
 
   // Suggestions state
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  
+
   // Quick Dive search limit tracking
   const [quickDiveSearches, setQuickDiveSearches] = useState<number>(() => {
     const stored = localStorage.getItem('attentio_quick_searches');
     return stored ? parseInt(stored, 10) : 0;
   });
   const QUICK_DIVE_LIMIT = 3;
-  
+
   // Signup gate state
   const [showSignupGate, setShowSignupGate] = useState(false);
   const [gateReason, setGateReason] = useState<'path' | 'quick_limit'>('path');
-  
+
   // Auth modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
-  
+
   // Achievements state
   const [achievementsModalOpen, setAchievementsModalOpen] = useState(false);
   const [achievementToast, setAchievementToast] = useState<{ title: string; icon: string } | null>(null);
-  
+
   // Saved path state
   const [currentSavedPath, setCurrentSavedPath] = useState<PathWithProgress | null>(null);
   const [savingPath, setSavingPath] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [pathSaved, setPathSaved] = useState(false);
-  
+
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const openAuthModal = (mode: 'login' | 'register') => {
@@ -402,13 +516,19 @@ export default function App() {
     return isAuthenticated || quickDiveSearches < QUICK_DIVE_LIMIT;
   };
 
+  // Helper to check if learning path has content
+  const hasLearningPathContent = (lp: PathStage[] | LearningPath): boolean => {
+    if (Array.isArray(lp)) return lp.length > 0;
+    return 'units' in lp && lp.units?.length > 0;
+  };
+
   // Handle saving a learning path
   const handleSavePath = async (replace: boolean = false) => {
-    if (!isAuthenticated || !state.learningPath.length) return;
-    
+    if (!isAuthenticated || !hasLearningPathContent(state.learningPath)) return;
+
     setSavingPath(true);
     setSaveError(null);
-    
+
     try {
       const result = await saveLearningPath(state.topic, state.learningPath, replace);
       setPathSaved(true);
@@ -436,15 +556,15 @@ export default function App() {
   // Handle continuing a saved path
   const handleContinuePath = async (pathId: number) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const pathData = await getPathWithProgress(pathId);
       setCurrentSavedPath(pathData);
-      setState(prev => ({ 
-        ...prev, 
-        mode: ViewMode.SAVED_PATH, 
+      setState(prev => ({
+        ...prev,
+        mode: ViewMode.SAVED_PATH,
         topic: pathData.topic,
-        isLoading: false 
+        isLoading: false
       }));
     } catch (err: any) {
       setState(prev => ({ ...prev, isLoading: false, error: err.message }));
@@ -454,12 +574,12 @@ export default function App() {
   // Handle recreating a path with fresh content
   const handleRecreatePath = async (topic: string, existingPathId: number) => {
     setState(prev => ({ ...prev, isLoading: true, error: null, mode: ViewMode.PATH, topic }));
-    
+
     try {
       // Generate new learning path
       const path = await fetchLearningPath(topic);
       setState(prev => ({ ...prev, learningPath: path, isLoading: false }));
-      
+
       // Auto-save with replace
       setSavingPath(true);
       const result = await saveLearningPath(topic, path, true);
@@ -510,7 +630,7 @@ export default function App() {
       openSignupGate('path');
       return;
     }
-    
+
     setState(prev => ({ ...prev, mode, error: null, topic: '', quickResources: [], learningPath: [] }));
     setFilterType('All');
     setSortType('Relevance');
@@ -650,7 +770,12 @@ export default function App() {
       );
     }
 
-    if (state.mode === ViewMode.PATH && state.learningPath.length > 0) {
+    // Check if we have a learning path (handles both old array format and new object format)
+    const hasLearningPath = Array.isArray(state.learningPath) 
+      ? state.learningPath.length > 0 
+      : 'units' in state.learningPath && state.learningPath.units?.length > 0;
+    
+    if (state.mode === ViewMode.PATH && hasLearningPath) {
       return (
         <div>
           {/* Save Path Action Bar */}
@@ -691,7 +816,7 @@ export default function App() {
               </button>
             </div>
           )}
-          <LearningTree path={state.learningPath} />
+          <LearningTreePreview path={state.learningPath} />
         </div>
       );
     }
@@ -721,13 +846,13 @@ export default function App() {
               <span className="text-[10px] tracking-[0.3em] text-emerald-500 font-mono">FOCUS</span>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4">
-          {state.mode !== ViewMode.HOME && (
-            <button onClick={() => handleModeSelect(ViewMode.HOME)} className="px-4 py-2 rounded-sm border border-emerald-500/30 text-xs font-mono text-emerald-500 hover:bg-emerald-500/10 transition-all uppercase tracking-widest">
-              [ Abort ]
-            </button>
-          )}
+            {state.mode !== ViewMode.HOME && (
+              <button onClick={() => handleModeSelect(ViewMode.HOME)} className="px-4 py-2 rounded-sm border border-emerald-500/30 text-xs font-mono text-emerald-500 hover:bg-emerald-500/10 transition-all uppercase tracking-widest">
+                [ Abort ]
+              </button>
+            )}
 
             {/* Stats page link */}
             {state.mode !== ViewMode.STATS && (
@@ -741,7 +866,7 @@ export default function App() {
                 Stats
               </button>
             )}
-            
+
             {/* My Paths button for logged-in users */}
             {isAuthenticated && state.mode !== ViewMode.MY_PATHS && (
               <button
@@ -752,7 +877,7 @@ export default function App() {
                 My Paths
               </button>
             )}
-            
+
             {/* Auth section */}
             {authLoading ? (
               <div className="w-8 h-8 rounded-full border-2 border-emerald-500/30 border-t-emerald-500 animate-spin" />
@@ -810,13 +935,13 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
               {/* Quick Dive Card with search limit indicator */}
               <div className="relative">
-              <ModeCard
-                title="Quick Dive"
-                desc="Rapid information acquisition. Curated videos and briefs."
-                icon={ZapIcon}
-                active={false}
-                onClick={() => handleModeSelect(ViewMode.QUICK)}
-              />
+                <ModeCard
+                  title="Quick Dive"
+                  desc="Rapid information acquisition. Curated videos and briefs."
+                  icon={ZapIcon}
+                  active={false}
+                  onClick={() => handleModeSelect(ViewMode.QUICK)}
+                />
                 {!isAuthenticated && (
                   <div className="absolute top-4 right-4 z-20">
                     <div className="px-2 py-1 bg-focus-dim border border-emerald-500/30 rounded text-[10px] font-mono text-emerald-400">
@@ -828,13 +953,13 @@ export default function App() {
 
               {/* Learning Path Card with lock indicator */}
               <div className="relative">
-              <ModeCard
-                title="Learning Path"
-                desc="Long-term structural knowledge acquisition."
-                icon={MapIcon}
-                active={false}
-                onClick={() => handleModeSelect(ViewMode.PATH)}
-              />
+                <ModeCard
+                  title="Learning Path"
+                  desc="Long-term structural knowledge acquisition."
+                  icon={MapIcon}
+                  active={false}
+                  onClick={() => handleModeSelect(ViewMode.PATH)}
+                />
                 {!isAuthenticated && (
                   <div className="absolute top-4 right-4 z-20">
                     <div className="px-2 py-1 bg-focus-dim border border-amber-500/30 rounded text-[10px] font-mono text-amber-400 flex items-center gap-1">
@@ -842,7 +967,7 @@ export default function App() {
                         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                       Sign up required
-            </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -863,9 +988,9 @@ export default function App() {
                     View All →
                   </button>
                 </div>
-                <div className="tech-border bg-focus-surface/50 rounded-lg p-6">
-                  <MyPaths 
-                    onContinuePath={handleContinuePath} 
+                <div className="tech-border bg-focus-surface/50 rounded-lg">
+                  <MyPaths
+                    onContinuePath={handleContinuePath}
                     onCreatePath={() => handleModeSelect(ViewMode.PATH)}
                     onRecreatePath={handleRecreatePath}
                   />
@@ -883,8 +1008,8 @@ export default function App() {
                 // SAVED CURRICULUM SEQUENCES
               </p>
             </div>
-            <MyPaths 
-              onContinuePath={handleContinuePath} 
+            <MyPaths
+              onContinuePath={handleContinuePath}
               onCreatePath={() => handleModeSelect(ViewMode.PATH)}
               onRecreatePath={handleRecreatePath}
             />
@@ -896,11 +1021,10 @@ export default function App() {
                 <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white uppercase">
                   {currentSavedPath.topic}
                 </h2>
-                <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-mono font-bold border rounded-sm ${
-                  currentSavedPath.status === 'completed' 
-                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' 
-                    : 'bg-blue-500/10 border-blue-500/40 text-blue-400'
-                }`}>
+                <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-mono font-bold border rounded-sm ${currentSavedPath.status === 'completed'
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                  : 'bg-blue-500/10 border-blue-500/40 text-blue-400'
+                  }`}>
                   {currentSavedPath.status === 'completed' ? 'COMPLETED' : 'IN PROGRESS'}
                 </span>
               </div>
@@ -908,7 +1032,7 @@ export default function App() {
                 // {currentSavedPath.completedTopics}/{currentSavedPath.totalTopics} TOPICS COMPLETED
               </p>
             </div>
-            
+
             {/* Progress Overview */}
             <div className="mb-8 p-4 bg-focus-surface border border-emerald-500/20 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -918,14 +1042,14 @@ export default function App() {
                 </span>
               </div>
               <div className="h-2 bg-emerald-500/10 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 rounded-full"
                   style={{ width: `${(currentSavedPath.completedTopics / currentSavedPath.totalTopics) * 100}%` }}
                 />
               </div>
             </div>
 
-            <ProgressLearningTree 
+            <ProgressLearningTree
               pathId={currentSavedPath.id}
               path={currentSavedPath.pathData}
               progressMap={currentSavedPath.progressMap}
@@ -983,7 +1107,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              
+
               {/* Search limit indicator for Quick Dive */}
               {state.mode === ViewMode.QUICK && !isAuthenticated && (
                 <div className="mt-3 flex justify-center">
@@ -993,11 +1117,10 @@ export default function App() {
                       {[...Array(QUICK_DIVE_LIMIT)].map((_, i) => (
                         <div
                           key={i}
-                          className={`w-2 h-2 rounded-full transition-colors ${
-                            i < (QUICK_DIVE_LIMIT - quickDiveSearches)
-                              ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
-                              : 'bg-gray-700'
-                          }`}
+                          className={`w-2 h-2 rounded-full transition-colors ${i < (QUICK_DIVE_LIMIT - quickDiveSearches)
+                            ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
+                            : 'bg-gray-700'
+                            }`}
                         />
                       ))}
                     </div>
@@ -1041,10 +1164,45 @@ export default function App() {
         )}
       </main>
 
+      {/* Footer */}
+      <footer className="relative z-10 mt-20 border-t border-white/5 bg-focus-base/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            {/* Product Hunt Badge */}
+            <div className="flex items-center">
+              <a
+                href="https://www.producthunt.com/products/attentio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-attentio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-opacity hover:opacity-80"
+              >
+                <img
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1043400&theme=dark&t=1764311424044"
+                  alt="Attentio - In a world full of distractions, learning smarter is key. | Product Hunt"
+                  style={{ width: '250px', height: '54px' }}
+                  width="250"
+                  height="54"
+                />
+              </a>
+            </div>
+
+            {/* Creator Credit */}
+            <div className="text-center md:text-right">
+              <p className="text-sm text-gray-400 font-mono">
+                Created by <span className="text-emerald-400 font-semibold">Zachariah Mithani</span>
+              </p>
+              <p className="text-xs text-gray-600 font-mono mt-1">
+                © {new Date().getFullYear()} Attentio. All rights reserved.
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
+
       {/* Auth Modal */}
-      <AuthModal 
-        isOpen={authModalOpen} 
-        onClose={() => setAuthModalOpen(false)} 
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
         initialMode={authModalMode}
       />
 
@@ -1055,9 +1213,9 @@ export default function App() {
 
       {/* Achievement Toast */}
       {achievementToast && (
-        <AchievementToast 
-          achievement={achievementToast} 
-          onClose={() => setAchievementToast(null)} 
+        <AchievementToast
+          achievement={achievementToast}
+          onClose={() => setAchievementToast(null)}
         />
       )}
 
@@ -1065,11 +1223,11 @@ export default function App() {
       {showSignupGate && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           {/* Backdrop */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={() => setShowSignupGate(false)}
           />
-          
+
           {/* Modal Content */}
           <div className="relative z-10 w-full max-w-md mx-4 animate-fade-up">
             <div className="relative tech-border bg-focus-surface rounded-xl p-8">
@@ -1103,12 +1261,12 @@ export default function App() {
               <p className="text-gray-400 text-center mb-6 leading-relaxed">
                 {gateReason === 'path' ? (
                   <>
-                    Learning Paths are an exclusive feature for registered users. 
+                    Learning Paths are an exclusive feature for registered users.
                     Create a free account to build personalized curriculum sequences and track your progress.
                   </>
                 ) : (
                   <>
-                    You've used all {QUICK_DIVE_LIMIT} free Quick Dive searches. 
+                    You've used all {QUICK_DIVE_LIMIT} free Quick Dive searches.
                     Create a free account for unlimited searches and access to Learning Paths.
                   </>
                 )}

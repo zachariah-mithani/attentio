@@ -228,24 +228,58 @@ router.post('/learning-path', pathGenerationLimiter, validateTopic, async (req, 
   try {
     const { topic } = req.body;
 
-    // Step 1: Generate learning path structure with AI
-    const prompt = `Create a comprehensive, structured learning path for "${topic}".
-  
-  DYNAMIC LENGTH INSTRUCTION:
-  - If the topic is BROAD (e.g., "Computer Science", "History", "Physics"), generate 5-7 stages.
-  - If the topic is SPECIFIC (e.g., "React Hooks", "Making Sourdough"), generate 3-4 stages.
+    // Step 1: Generate Duolingo-style learning path structure with AI
+    const prompt = `Create a DUOLINGO-STYLE learning path for "${topic}".
 
-  Return ONLY a valid JSON array of objects, each containing:
-  - stageName (string): e.g., "Foundations", "Core Concepts", "Advanced Techniques"
-  - description (string): brief description of this stage
-  - goal (string): learning goal for this stage
-  - keyTopics (array of strings): 3-4 specific topic names to learn (these will be used to search for YouTube videos)
-  - suggestedProject (string): a hands-on project for this stage
+STRUCTURE (like Duolingo):
+- 2-4 UNITS (major sections, like Duolingo's unit circles)
+- Each unit has 3-5 LEVELS (like Duolingo skills/crowns)
+- Each level has 3-5 LESSONS (bite-sized, 3-8 minute videos each)
 
-  IMPORTANT: keyTopics should be specific, searchable terms that would return good educational YouTube videos.
-  Example for "Machine Learning": ["What is Machine Learning basics", "Linear Regression explained", "Neural Networks introduction"]
+LESSON DESIGN PRINCIPLES:
+- Each lesson should be ONE focused concept (not multiple topics crammed together)
+- Lessons should be completable in 3-8 minutes
+- Progress from simple to complex within each level
+- Each lesson builds on the previous one
 
-  Return ONLY the JSON array, no other text.`;
+Return ONLY a valid JSON object with this EXACT structure:
+{
+  "topic": "${topic}",
+  "units": [
+    {
+      "unitNumber": 1,
+      "title": "Unit Title (e.g., 'Foundations')",
+      "description": "What this unit covers",
+      "color": "#hex color for this unit",
+      "levels": [
+        {
+          "levelNumber": 1,
+          "title": "Level Title (e.g., 'Getting Started')",
+          "description": "What you'll learn in this level",
+          "icon": "emoji icon",
+          "lessons": [
+            {
+              "title": "Lesson Title (e.g., 'What is X?')",
+              "description": "One sentence about this lesson",
+              "searchQuery": "specific YouTube search query for this exact lesson"
+            }
+          ],
+          "challengeProject": "Optional mini-project for this level"
+        }
+      ],
+      "bossChallenge": "Final project for completing this unit"
+    }
+  ]
+}
+
+IMPORTANT RULES:
+1. searchQuery should be VERY SPECIFIC to find a single focused video (e.g., "what is a variable python tutorial beginner")
+2. Lessons should be ATOMIC - one concept per lesson
+3. Use engaging, curiosity-sparking lesson titles
+4. Colors should be vibrant and distinct for each unit (emerald, purple, amber, blue, etc.)
+5. Icons should be relevant emojis (🎯, 🔥, 💡, 🚀, ⚡, 🎨, 🔧, etc.)
+
+Return ONLY the JSON object, no other text.`;
 
     const text = await callOpenRouter(prompt);
     
@@ -256,21 +290,33 @@ router.post('/learning-path', pathGenerationLimiter, validateTopic, async (req, 
     const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const rawPath = JSON.parse(jsonText);
     
-    // Step 2: Fetch real YouTube videos for each topic
-    const path = await Promise.all(rawPath.map(async (stage) => {
-      const keyTopicsWithVideos = await Promise.all(
-        stage.keyTopics.map(async (topicName) => {
-          // Search YouTube for this specific topic
-          const searchQuery = `${topic} ${topicName}`;
-          const video = await searchYouTubeVideo(searchQuery);
+    // Step 2: Fetch real YouTube videos for each lesson
+    let totalLessons = 0;
+    let totalLevels = 0;
+    let totalXp = 0;
+    
+    const units = await Promise.all(rawPath.units.map(async (unit, unitIndex) => {
+      const levels = await Promise.all(unit.levels.map(async (level, levelIndex) => {
+        totalLevels++;
+        
+        const lessons = await Promise.all(level.lessons.map(async (lesson, lessonIndex) => {
+          totalLessons++;
+          const xpReward = 10 + Math.floor(Math.random() * 6); // 10-15 XP per lesson
+          totalXp += xpReward;
+          
+          // Search YouTube for this specific lesson
+          const video = await searchYouTubeVideo(lesson.searchQuery || `${topic} ${lesson.title}`);
           
           return {
-            name: topicName,
+            id: `u${unitIndex + 1}-l${levelIndex + 1}-s${lessonIndex + 1}`,
+            title: lesson.title,
+            description: lesson.description,
+            xpReward,
             resource: video || {
-              title: `Search: ${topicName}`,
+              title: `Search: ${lesson.title}`,
               type: 'Video',
               description: 'Search YouTube for this topic',
-              url: `https://www.youtube.com/results?search_query=${encodeURIComponent(topic + ' ' + topicName)}`,
+              url: `https://www.youtube.com/results?search_query=${encodeURIComponent(lesson.searchQuery || topic + ' ' + lesson.title)}`,
               videoId: null,
               views: '-',
               viewCount: 0,
@@ -278,19 +324,46 @@ router.post('/learning-path', pathGenerationLimiter, validateTopic, async (req, 
               durationMin: 0,
             }
           };
-        })
-      );
+        }));
+        
+        const levelTotalXp = lessons.reduce((sum, l) => sum + l.xpReward, 0);
+        
+        return {
+          id: `u${unitIndex + 1}-l${levelIndex + 1}`,
+          levelNumber: level.levelNumber || levelIndex + 1,
+          title: level.title,
+          description: level.description,
+          icon: level.icon || '📚',
+          lessons,
+          challengeProject: level.challengeProject,
+          totalXp: levelTotalXp,
+        };
+      }));
       
       return {
-        ...stage,
-        keyTopics: keyTopicsWithVideos,
+        id: `u${unitIndex + 1}`,
+        unitNumber: unit.unitNumber || unitIndex + 1,
+        title: unit.title,
+        description: unit.description,
+        color: unit.color || '#10b981',
+        levels,
+        bossChallenge: unit.bossChallenge,
       };
     }));
+    
+    const learningPath = {
+      topic: rawPath.topic || topic,
+      totalUnits: units.length,
+      totalLevels,
+      totalLessons,
+      totalXp,
+      units,
+    };
     
     // Track path generation
     await incrementStat('paths_generated');
     
-    res.json({ path });
+    res.json({ path: learningPath });
   } catch (error) {
     console.error('Learning path error:', error);
     res.status(500).json({ error: 'Failed to generate learning path' });

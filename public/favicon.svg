@@ -1,0 +1,18 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simplified favicon version -->
+  <rect width="64" height="64" rx="8" fill="#020617"/>
+  <rect x="4" y="4" width="56" height="56" rx="6" fill="#10b981" opacity="0.15"/>
+  
+  <!-- Lightning bolt -->
+  <path d="M38 16L22 35H32L26 48L42 29H32L38 16Z" 
+        fill="#10b981" 
+        stroke="#10b981" 
+        stroke-width="1.5" 
+        stroke-linejoin="round"/>
+  
+  <!-- Corner accents -->
+  <path d="M4 10V4H10" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+  <path d="M60 10V4H54" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+  <path d="M4 54V60H10" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+  <path d="M60 54V60H54" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+</svg>
