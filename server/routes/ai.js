@@ -35,7 +35,7 @@ async function incrementStat(field) {
 
 const OPENROUTER_API_KEY = process.env.API_KEY || '';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL_ID = 'x-ai/grok-4.1-fast:free';
+const MODEL_ID = 'google/gemma-3n-e4b-it:free'; // Updated: grok model was removed from OpenRouter
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search';
