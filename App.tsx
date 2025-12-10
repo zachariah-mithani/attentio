@@ -1375,7 +1375,7 @@ export default function App() {
             )}
 
             {/* Search Suggestions */}
-            {suggestions.length > 0 && (
+            {suggestions.length > 0 && !showSkillSelector && (
               <div className="mb-16 animate-fade-up">
                 <div className="text-[10px] text-emerald-500/60 font-mono tracking-[0.2em] mb-3 uppercase">
                   Trending Vectors:
@@ -1384,7 +1384,15 @@ export default function App() {
                   {suggestions.map((suggestion, idx) => (
                     <button
                       key={idx}
-                      onClick={() => executeSearch(suggestion)}
+                      onClick={() => {
+                        if (state.mode === ViewMode.PATH) {
+                          // For learning paths, set topic and show skill selector
+                          setState(prev => ({ ...prev, topic: suggestion }));
+                          setShowSkillSelector(true);
+                        } else {
+                          executeSearch(suggestion);
+                        }
+                      }}
                       className="px-4 py-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/20 hover:border-emerald-500/50 text-emerald-400 text-sm font-mono transition-all duration-300 flex items-center group"
                     >
                       <span className="mr-2 opacity-50 group-hover:opacity-100">+</span>
